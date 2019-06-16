@@ -32,9 +32,9 @@ if (CMAKE_VERSION VERSION_LESS 2.8.11)
   include_directories("${gtest_SOURCE_DIR}/include")
 endif()
 
-add_executable(minou
-  src/main.cpp
-  src/main.hpp
+set (main src/main.cpp)
+
+set(files
   src/minou.hpp
   src/minou.cpp
   src/parser.cpp
@@ -43,21 +43,27 @@ add_executable(minou
   src/eval.hpp
   )
 
+add_executable(minou
+  ${main}
+  ${files}
+  )
+
 set(CMAKE_BUILD_TYPE Debug)
 target_compile_features(minou PRIVATE cxx_std_17)
-
 target_link_libraries(minou readline)
 
 if(MSVC)
   add_compile_options(minou /W4 /WX)
 else()
-  add_compile_options(minou -g3 -Wall -Wextra -pedantic -Werror)
+  add_compile_options(minou -Wall -Wextra -pedantic)
 endif()
 
 
 # # Add test cpp file
-add_executable( runUnitTests t/test_main.cpp)
+enable_testing()
+add_executable( minou-tests t/test_main.cpp ${files})
 # # Link test executable against gtest & gtest_main
-target_link_libraries(runUnitTests gtest)
-
+target_compile_features(minou-tests PRIVATE cxx_std_17)
+target_link_libraries(minou-tests gtest gtest_main)
+include_directories("src/")
 add_test( runUnitTests runUnitTests )

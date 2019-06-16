@@ -1,7 +1,10 @@
 #include "gtest/gtest.h"
+#include "minou.hpp"
 
-int main(int argc, char **argv)
-{
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+using namespace minou;
+
+TEST(Parsing, AllTheThings) {
+    Atom a = parse("5");
+
+    EXPECT_EQ(a.integer.value, 5);
 }

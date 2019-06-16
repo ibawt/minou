@@ -11,9 +11,8 @@ using namespace minou;
 using std::cout;
 using std::endl;
 
-int main(int argc, char **argv)
+int main()
 {
-    cout << "atom size is: " << sizeof(Atom) << endl;
   auto e = default_env();
   BottomCont cont;
 

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef PARSER_H_
+#define PARSER_H_
 
 #include <stdexcept>
 #include <variant>
@@ -14,4 +15,10 @@ public:
 };
 
 Atom parse(const char*, size_t);
+
+inline Atom parse(const std::string& s) {
+  return parse(s.c_str(), s.size()); 
 }
+}
+
+#endif

@@ -94,4 +94,6 @@ inline Atom make_nil()
 
 
 }
+
+#include "parser.hpp"
 #endif
