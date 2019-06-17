@@ -3,6 +3,7 @@
 
 #include <string>
 #include <cassert>
+#include <vector>
 
 namespace minou
 {
@@ -25,6 +26,10 @@ namespace minou
       int64_t value;
       double  real;
     };
+
+    bool operator==(const Number& n) const {
+      return value == n.value;
+    }
   };
 
   struct Cons;
@@ -34,13 +39,12 @@ namespace minou
   {
     Atom() : type(AtomType::Nil), cons(nullptr) {}
     Atom(int64_t i) : type(AtomType::Number), integer(i) {}
-    Atom(const char *foo) : type(AtomType::String), string(new String(foo)) {}
-    Atom(const std::string& s): type(AtomType::String), string(new String(s)) {}
     Atom(Cons *cons) : type(AtomType::Cons), cons(cons) {}
     Atom(bool b) : type(AtomType::Boolean), boolean(b) {}
     Atom(Procedure *p) : type(AtomType::Procedure), procedure(p) {}
 
     bool is_list() const {
+
       return type == AtomType::Cons;
     }
 
@@ -58,16 +62,81 @@ namespace minou
       Procedure *procedure;
     };
 
+    bool operator==(const Atom& other) const {
+      if( type != other.type) {
+        return false;
+      }
+
+      switch(type) {
+      case AtomType::Number:
+        return integer == other.integer;
+      case AtomType::Cons:
+        return cons == other.cons;
+      case AtomType::Symbol:
+        return *symbol == *other.symbol;
+      case AtomType::String:
+        return *string == *other.string;
+      case AtomType::Nil:
+        return true;
+      case AtomType::Boolean:
+        return boolean == other.boolean;
+      case AtomType::Procedure:
+        return procedure == other.procedure;
+      }
+      return false;
+    }
     std::string to_string() const;
   };
 
-std::ostream& operator<<(std::ostream&os, const Atom& a);
+  inline Atom make_symbol(const std::string& s)
+  {
+    Atom a;
+    a.type = AtomType::Symbol;
+    a.symbol = new Symbol(s);
+
+    return a;
+  }
+
+  inline Atom make_string(const std::string& s)
+  {
+    Atom a;
+    a.type = AtomType::String;
+    a.string = new String(s);
+    return a;
+  }
 
   struct Cons {
     Cons(Atom car, Cons *cdr = nullptr) : car(car), cdr(cdr) {}
     Atom  car;
     Cons *cdr;
   };
+
+  bool equalsp(const Atom& a, const Atom& b);
+
+  inline Atom make_list(const std::vector<Atom>& list)
+  {
+    Cons *c = nullptr;
+    Cons *head = nullptr;
+    for(unsigned i = 0 ; i < list.size() ; ++i) {
+      Cons *nc = new Cons(list[i], nullptr);
+
+      if(! c ) {
+        c = nc;
+        head = c;
+      } else {
+        c->cdr = nc;
+        c = nc;
+      }
+    }
+    return head;
+  }
+
+  inline Atom make_nil()
+  {
+    return Atom();
+  }
+
+std::ostream& operator<<(std::ostream&os, const Atom& a);
 
   inline Atom car(Atom& a)
   {
@@ -85,10 +154,6 @@ std::ostream& operator<<(std::ostream&os, const Atom& a);
     return Atom(new Cons(item, list));
   }
 
-inline Atom make_nil()
-{
-  return Atom();
-}
 
 
 

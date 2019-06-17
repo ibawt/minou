@@ -10,11 +10,13 @@ namespace minou {
     assert(a.type == AtomType::Cons);
     const Cons *cur = a.cons;
     if(!cur) {
+      s << ")";
       return ;
     }
 
     for(;;) {
       s << cur->car.to_string();
+
 
       if( cur->cdr == nullptr ) {
         return;
@@ -29,6 +31,37 @@ namespace minou {
   {
     os << a.to_string();
     return os;
+  }
+
+  bool equalsp(const Atom& a, const Atom& b)
+  {
+    if( a.type != b.type) {
+      return false;
+    }
+    Cons *ca = a.cons;
+    Cons *cb = b.cons;
+
+    for(;;) {
+      if( !ca && !cb) {
+        break;
+      }
+      if(!ca || !cb) {
+        // length mismatch
+        return false;
+      }
+
+      if(ca->car.is_list() && cb->car.is_list()) {
+        // recurse
+        if(!equalsp(ca->car, cb->car )) {
+          return false;
+        }
+      } else if(!(ca->car == cb->car)) {
+        return false;
+      }
+      ca = ca->cdr;
+      cb = cb->cdr;
+    }
+    return true;
   }
 
   std::string Atom::to_string() const
@@ -53,14 +86,13 @@ namespace minou {
       s << "\"" << *string << "\"";
       break;
     case AtomType::Procedure:
-      s << "proc @(" << (void *)procedure << ")";
+      s << "lambda()";
       break;
     case AtomType::Nil:
       s << "nil";
       break;
     case AtomType::Boolean:
       s << (boolean ? "#t" : "#f");
-      break;
     }
     return s.str();
   }

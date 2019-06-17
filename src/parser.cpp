@@ -40,24 +40,6 @@ static void read_to_new_line(Buffer& buff)
 
 static Atom parse_atom(Buffer& buff);
 
-static Atom make_list(const std::vector<Atom>& list)
-{
-  Cons *c = nullptr;
-  Cons *head = nullptr;
-  for(unsigned i = 0 ; i < list.size() ; ++i) {
-    Cons *nc = new Cons(list[i], nullptr);
-
-    if(! c ) {
-      c = nc;
-      head = c;
-    } else {
-      c->cdr = nc;
-      c = nc;
-    }
-  }
-  return head;
-}
-
 static Atom parse_list(Buffer& buff)
 {
   std::vector<Atom> list;
@@ -84,10 +66,9 @@ static Atom parse_list(Buffer& buff)
 
 static Atom quote_atom(Atom a)
 {
-  std::vector<Atom> l;
-  l.push_back(Atom("quote"));
-  l.push_back(a);
-  return make_list(l);
+  auto l = make_list({make_symbol("quote"), a});
+  printf("l = %s\n", l.to_string().c_str());
+  return l;
 }
 
 static std::string read_value(Buffer& buff)
@@ -136,7 +117,7 @@ static Atom read_string(Buffer& buff)
       break;
     case '"':
       buff.next();
-      return Atom(std::string(out.data(), out.size()));
+      return make_string(std::string(out.data(), out.size()));
     case EOF:
       throw ParseException("eof");
     default:
@@ -169,6 +150,7 @@ static bool parse_integer(const std::string& s, int64_t *i)
 static Atom read_atom(Buffer& buff)
 {
   if(buff.peek() == '"') {
+    buff.next();
     return read_string(buff);
   }
   auto v = read_value(buff);
@@ -193,10 +175,7 @@ static Atom read_atom(Buffer& buff)
     }
   }
 
-  Atom a;
-  a.type = AtomType::Symbol;
-  a.symbol = new std::string(v);
-  return a;
+  return make_symbol(v);
 }
 
 static Atom parse_atom(Buffer& buff) {
