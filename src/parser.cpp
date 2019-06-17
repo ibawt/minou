@@ -66,9 +66,7 @@ static Atom parse_list(Buffer& buff)
 
 static Atom quote_atom(Atom a)
 {
-  auto l = make_list({make_symbol("quote"), a});
-  printf("l = %s\n", l.to_string().c_str());
-  return l;
+  return make_list({make_symbol("quote"), a});
 }
 
 static std::string read_value(Buffer& buff)

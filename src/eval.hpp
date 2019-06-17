@@ -31,7 +31,7 @@ public:
   Env(Env* parent) : parent(parent) {}
   Env() : parent({}) {}
 
-  std::optional<Atom> lookup(const std::string& key) {
+  std::optional<Atom> lookup(const Symbol& key) {
     auto f = map.find(key);
 
     if(f == map.end()) {
@@ -43,36 +43,44 @@ public:
     return f->second;
   }
 
-  void set(const std::string& key, Atom value) {
-      std::cout << "setting [" << key << "] = " << value << std::endl;
-    map[key] = value;
+  void set(const Symbol& key, Atom value) {
+      map[key] = value;
   }
 
-  std::variant<Env*, std::string> extend(Cons *args, Cons* vars)
-  {
-    Env *e = new Env(this);
+    std::variant<Env*, std::string> extend(Cons *args, Cons* vars) {
+        Env *e = nullptr;
 
-    for(; args && vars ;) {
-      auto k = args->car;
-      auto v = vars->car;
+        for(;;) {
+            if ((args && !vars) ||  (!args && vars)) {
+                return std::string("wrong arity");
+            }
+            if(!(args && vars)) {
+                break;
+            }
 
-      if(!k.cons && !v.cons) {
-        break;
-      }
+            auto k = args->car;
+            auto v = vars->car;
 
-      if( k.cons->car.type != AtomType::Symbol) {
-        return std::string("invalid argument type") ;
-      }
+            if(!k.cons && !v.cons) {
+                break;
+            }
 
-      e->set(*k.cons->car.symbol, v.cons->car);
+            if( k.type != AtomType::Symbol) {
+                return std::string("invalid argument type:" + k.cons->car.to_string()) ;
+            }
 
-      args = args->cdr;
-      vars = vars->cdr;
+            if(!e) {
+                e = new Env();
+            }
+            e->set(*k.symbol, v);
+
+            args = args->cdr;
+            vars = vars->cdr;
+        }
+        return e;
     }
-    return e;
-  }
 private:
-  std::map<const std::string, Atom> map;
+  std::map<const Symbol, Atom> map;
   std::optional<Env*> parent;
 };
 

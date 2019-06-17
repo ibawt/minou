@@ -1,9 +1,12 @@
 #ifndef MINOU_H_
 #define MINOU_H_
 
+#include <iostream>
 #include <string>
 #include <cassert>
 #include <vector>
+#include <string.h>
+#include <stdlib.h>
 
 namespace minou
 {
@@ -17,8 +20,37 @@ namespace minou
     Procedure
   };
 
-  using String = std::string;
-  using Symbol = std::string;
+  struct StringBuffer {
+    StringBuffer(const StringBuffer& other) : value(strdup(other.value)) {}
+    StringBuffer(const std::string& s) {
+      value = strdup(s.c_str());
+    }
+    StringBuffer(const char *s) : value(strdup(s)) {}
+
+    ~StringBuffer() {
+      free((void*)value);
+      value = nullptr;
+    }
+    bool operator==(const StringBuffer& other) const {
+      return strcmp( value, other.value) == 0;
+    }
+    bool operator==(const char *other) const {
+      return strcmp(value, other) == 0;
+    }
+    bool operator<(const StringBuffer& other) const {
+      return strcmp(value, other.value) < 0;
+    }
+    const char *value;
+  };
+
+  inline std::ostream& operator<<(std::ostream& os, const StringBuffer& s)
+  {
+    os << s.value;
+    return os;
+  }
+
+  using String = StringBuffer;
+  using Symbol = StringBuffer;
 
   struct Number {
     Number(int64_t i) : value(i) {}
@@ -44,7 +76,6 @@ namespace minou
     Atom(Procedure *p) : type(AtomType::Procedure), procedure(p) {}
 
     bool is_list() const {
-
       return type == AtomType::Cons;
     }
 
@@ -54,11 +85,11 @@ namespace minou
 
     AtomType type;
     union {
-      Number integer;
-      Cons   *cons;
-      Symbol *symbol;
-      String *string;
-      bool    boolean;
+      Number     integer;
+      Cons      *cons;
+      Symbol    *symbol;
+      String    *string;
+      bool       boolean;
       Procedure *procedure;
     };
 
@@ -88,6 +119,8 @@ namespace minou
     std::string to_string() const;
   };
 
+  Cons* alloc_cons(Atom a, Cons *next);
+
   inline Atom make_symbol(const std::string& s)
   {
     Atom a;
@@ -113,12 +146,19 @@ namespace minou
 
   bool equalsp(const Atom& a, const Atom& b);
 
+  inline Cons* make_cons(Atom a, Cons* next = nullptr) {
+    auto c = alloc_cons(a, next);
+
+    return c;
+  }
+
   inline Atom make_list(const std::vector<Atom>& list)
   {
     Cons *c = nullptr;
     Cons *head = nullptr;
-    for(unsigned i = 0 ; i < list.size() ; ++i) {
-      Cons *nc = new Cons(list[i], nullptr);
+
+    for(const auto&a : list) {
+      Cons *nc = make_cons(a);
 
       if(! c ) {
         c = nc;
@@ -136,26 +176,24 @@ namespace minou
     return Atom();
   }
 
+
 std::ostream& operator<<(std::ostream&os, const Atom& a);
 
-  inline Atom car(Atom& a)
-  {
-    assert(a.is_list());
-    return a.cons->car;
-  }
+inline Atom car(const Atom& a)
+{
+  assert(a.is_list());
+  return a.cons->car;
+}
 
-  inline Atom cdr(Atom& a)
-  {
-    assert(a.is_list());
-    return a.cons->cdr;
-  }
+inline Atom cdr(const Atom& a)
+{
+  assert(a.is_list());
+  return a.cons->cdr;
+}
 
-  inline Atom cons(Atom item, Cons* list) {
-    return Atom(new Cons(item, list));
-  }
-
-
-
+inline Atom cons(const Atom item, Cons* list) {
+  return make_cons(item, list);
+}
 
 
 }

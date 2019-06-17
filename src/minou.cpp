@@ -38,6 +38,10 @@ namespace minou {
     if( a.type != b.type) {
       return false;
     }
+    if(!a.is_list()) {
+      return false;
+    }
+
     Cons *ca = a.cons;
     Cons *cb = b.cons;
 

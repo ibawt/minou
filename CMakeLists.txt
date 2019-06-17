@@ -43,12 +43,10 @@ set(files
   src/parser.hpp
   src/eval.cpp
   src/eval.hpp
+  src/heap.cpp
   )
 
-add_executable(minou
-  ${main}
-  ${files}
-  )
+add_executable(minou ${main} ${files})
 
 target_compile_features(minou PRIVATE cxx_std_17)
 target_link_libraries(minou readline)
@@ -56,7 +54,7 @@ target_link_libraries(minou readline)
 if(MSVC)
   add_compile_options(minou /W4 /WX)
 else()
-  add_compile_options(minou -Wall -Wextra -pedantic)
+  add_compile_options(minou -Wall)
 endif()
 
 

@@ -10,18 +10,11 @@
 
 namespace minou {
 
+#define UNUSED  __attribute__((unused))
+
 using str = std::string;
 using std::cout;
 using std::endl;
-
-  void log(int level, const char *fmt, ...)
-  {
-    va_list args;
-    va_start (args, fmt);
-
-    vprintf(fmt, args);
-    printf("\n");
-  }
 
 EvalResult eval_args(Atom e, Env *env, Continuation *k);
 EvalResult eval_begin(Atom a, Env *env, Continuation *k);
@@ -50,7 +43,7 @@ public:
   Lambda(Cons *variables, Cons* body, Env *env) :
     variables(variables), body(body), env(env) {}
 
-  EvalResult invoke(Cons *args, Env *env, Continuation *k) override
+  EvalResult invoke(Cons *args, Env *env UNUSED, Continuation *k) override
   {
     auto e = this->env->extend(variables, args);
 
@@ -75,8 +68,8 @@ public:
   BeginCont(Continuation *k, Atom e, Env *env) :
     k(k), e(e), env(env) {}
 
-  EvalResult resume(Atom a) override {
-    return eval_begin(a, env, k);
+  EvalResult resume(Atom a UNUSED) override {
+    return eval_begin(e, env, k);
   }
 private:
   Continuation *k;
@@ -86,17 +79,20 @@ private:
 
 EvalResult eval_begin(Atom a, Env *env, Continuation *k)
 {
-  if(a.type != AtomType::Cons) {
+  if(!a.is_list()) {
     return str("invalid begin structure");
   }
+
   if( !a.cons ) {
-    return k->resume(Atom(false));
+    return k->resume(make_nil());
   }
+
   if( !a.cons->cdr) {
     return eval(a.cons->car, env, k);
   }
+
   BeginCont bc(k, a.cons->cdr, env);
-  return eval(a.cons->car, env, k);
+  return eval(a.cons->car, env, &bc);
 }
 
 class IfCont : public Continuation
@@ -125,16 +121,15 @@ public:
   ApplyCont(Continuation *k, Atom f, Env *env) : f(f), env(env), k(k) {}
 
   EvalResult resume(Atom a) override {
-    if(!a.is_pair()) {
+    if(!a.is_list()) {
       return str("invalid argument");
     }
-    switch(f.type) {
-    case AtomType::Procedure:
-      assert( a.procedure);
-      return f.procedure->invoke(a.cons, env, k);
-    default:
+    if(f.type !=  AtomType::Procedure) {
       return str("invalid type for apply");
     }
+
+    assert(f.procedure);
+    return f.procedure->invoke(a.cons, env, k);
   }
 private:
   Atom f;
@@ -205,7 +200,7 @@ private:
   Continuation *k;
 };
 
-EvalResult eval_quote(Atom a, Env *env, Continuation *k)
+EvalResult eval_quote(Atom a, Continuation *k)
 {
   return k->resume(a);
 }
@@ -249,9 +244,9 @@ EvalResult eval_application(Atom e, Atom ee, Env *env, Continuation *k)
   return eval(e, env, &cont);
 }
 
-EvalResult eval_variable(const std::string& n, Env *env, Continuation *k)
+EvalResult eval_variable(const Symbol& s, Env *env, Continuation *k)
 {
-  auto v = env->lookup(n);
+  auto v = env->lookup(s);
   if (v.has_value()) {
     return k->resume(v.value());
   }
@@ -260,7 +255,6 @@ EvalResult eval_variable(const std::string& n, Env *env, Continuation *k)
 
 EvalResult eval(Atom a, Env* env, Continuation* k)
 {
-  // std::cout << "eval: " << a << std::endl; 
   switch(a.type) {
   case AtomType::Cons:
     if(!a.cons) {
@@ -286,7 +280,7 @@ EvalResult eval(Atom a, Env* env, Continuation* k)
         if(!a.cons->cdr) {
           return std::string("invalid quote call");
         }
-        return eval_quote(a.cons->cdr->car, env, k);
+        return eval_quote(a.cons->cdr->car, k);
       }
       // BEGIN
       else if( sym == "begin") {
@@ -294,8 +288,8 @@ EvalResult eval(Atom a, Env* env, Continuation* k)
       }
       // LAMBDA
       else if( sym == "lambda") {
-        Lambda l(a.cons->cdr->car.cons, a.cons->cdr->cdr, env);
-        return k->resume(&l);
+        auto l = new Lambda (a.cons->cdr->car.cons, a.cons->cdr->cdr, env);
+        return k->resume(l);
       }
       // EVAL
       else {
@@ -309,7 +303,7 @@ EvalResult eval(Atom a, Env* env, Continuation* k)
     return eval_variable(*a.symbol, env, k);
     break;
   default:
-    return eval_quote(a, env, k);
+    return eval_quote(a, k);
   }
 
   return std::string("shouldn't get here");
