@@ -29,7 +29,7 @@ class Env
 {
 public:
   Env(Env* parent) : parent(parent) {}
-  Env() : parent({}) {}
+    Env() : parent({}) {}
 
   std::optional<Atom> lookup(const Symbol& key) {
     auto f = map.find(key);
@@ -79,8 +79,7 @@ public:
         }
         return e;
     }
-private:
-  std::map<const Symbol, Atom> map;
+    std::map<const std::string, Atom> map;
   std::optional<Env*> parent;
 };
 
@@ -97,8 +96,40 @@ public:
     return a;
   }
 };
+class Procedure {
+public:
+    virtual EvalResult invoke(Cons* args, Env *env, Continuation *k) = 0;
+    virtual void visit() {}
+};
+
+    Env default_env();
+    void walk_env(Env *);
+    void visit_atom(Atom&a);
+
+
+    class Lambda : public Procedure
+    {
+    public:
+        Lambda(Cons *variables, Cons* body, Env *env) :
+            variables(variables), body(body), env(env) {}
+
+        EvalResult invoke(Cons *args, Env *env, Continuation *k) override;
+
+        void visit() override {
+            Atom a = Atom(variables);
+            visit_atom(a);
+            Atom b = Atom(body);
+            visit_atom(b);
+            walk_env(env);
+        }
+    private:
+        Cons *variables;
+        Cons *body;
+        Env  *env;
+    };
+
 EvalResult eval(Atom a, Env*, Continuation*);
-Env default_env();
+Lambda* alloc_lambda(Cons*, Cons*, Env*);
 }
 
 

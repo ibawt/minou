@@ -19,11 +19,6 @@ using std::endl;
 EvalResult eval_args(Atom e, Env *env, Continuation *k);
 EvalResult eval_begin(Atom a, Env *env, Continuation *k);
 
-class Procedure {
-public:
-  virtual EvalResult invoke(Cons* args, Env *env, Continuation *k) = 0;
-};
-
 using Applicative = EvalResult(Cons *args, Env *env, Continuation *k);
 
 class Primitive : public Procedure
@@ -37,13 +32,12 @@ private:
   std::function<Applicative> op;
 };
 
-class Lambda : public Procedure
-{
-public:
-  Lambda(Cons *variables, Cons* body, Env *env) :
-    variables(variables), body(body), env(env) {}
 
-  EvalResult invoke(Cons *args, Env *env UNUSED, Continuation *k) override
+
+
+EvalResult eval_begin(Atom a, Env *env, Continuation *k);
+
+  EvalResult Lambda::invoke(Cons *args, Env *env, Continuation *k)
   {
     auto e = this->env->extend(variables, args);
 
@@ -52,15 +46,6 @@ public:
     }
     return eval_begin( body, std::get<Env*>(e), k);
   }
-private:
-  Cons *variables;
-  Cons *body;
-  Env  *env;
-};
-
-
-
-EvalResult eval_begin(Atom a, Env *env, Continuation *k);
 
 class BeginCont : public Continuation
 {
@@ -141,7 +126,6 @@ class GatherCont : public Continuation
 {
 public:
   GatherCont(Continuation *k, Atom v) : k(k), v(v) {}
-
   EvalResult resume(Atom a) override {
     if(a.type == AtomType::Cons) {
       return k->resume( cons(v, a.cons));
@@ -253,6 +237,7 @@ EvalResult eval_variable(const Symbol& s, Env *env, Continuation *k)
   return str("not found!");
 }
 
+
 EvalResult eval(Atom a, Env* env, Continuation* k)
 {
   switch(a.type) {
@@ -288,7 +273,7 @@ EvalResult eval(Atom a, Env* env, Continuation* k)
       }
       // LAMBDA
       else if( sym == "lambda") {
-        auto l = new Lambda (a.cons->cdr->car.cons, a.cons->cdr->cdr, env);
+        auto l = alloc_lambda(a.cons->cdr->car.cons, a.cons->cdr->cdr, env);
         return k->resume(l);
       }
       // EVAL
@@ -324,12 +309,9 @@ EvalResult add(Cons *args, Env *env, Continuation *k) {
   return k->resume(sum);
 }
 
-Env default_env()
-{
-  Env env;
-
-  env.set("+", new Primitive(add));
-  env.set("-", new Primitive([](Cons *args, Env *env, Continuation *k) -> EvalResult {
+static std::map<std::string, Primitive> primitives =
+  { { "+", Primitive(add) },
+    { "-", Primitive([](Cons *args, Env *env, Continuation *k) -> EvalResult {
                                assert(env);
                                assert(k);
 
@@ -355,7 +337,17 @@ Env default_env()
                                  i -= args->car.integer.value;
                                }
                                return i;
-                             }));
+                     })},
+  };
+
+Env default_env()
+{
+  Env env;
+
+  for(auto& [name, prim] : primitives) {
+    env.set(name, &prim);
+  }
+
   return env;
 }
 

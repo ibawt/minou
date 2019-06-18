@@ -20,37 +20,34 @@ namespace minou
     Procedure
   };
 
-  struct StringBuffer {
-    StringBuffer(const StringBuffer& other) : value(strdup(other.value)) {}
-    StringBuffer(const std::string& s) {
-      value = strdup(s.c_str());
-    }
-    StringBuffer(const char *s) : value(strdup(s)) {}
+  // struct StringBuffer {
+  //   StringBuffer(const char *src) {
+  //     strcpy(value, src);
+  //   }
+  //   // StringBuffer(const StringBuffer& other) : value(strdup(other.value)) {}
+  //   // StringBuffer(const std::string& s) : value(strdup(s.c_str())) {}
+  //   // StringBuffer(const char *s) : value(strdup(s)) {}
 
-    ~StringBuffer() {
-      free((void*)value);
-      value = nullptr;
-    }
-    bool operator==(const StringBuffer& other) const {
-      return strcmp( value, other.value) == 0;
-    }
-    bool operator==(const char *other) const {
-      return strcmp(value, other) == 0;
-    }
-    bool operator<(const StringBuffer& other) const {
-      return strcmp(value, other.value) < 0;
-    }
-    const char *value;
-  };
+  //   bool operator==(const StringBuffer& other) const {
+  //     return strcmp( value, other.value) == 0;
+  //   }
+  //   bool operator==(const char *other) const {
+  //     return strcmp(value, other) == 0;
+  //   }
+  //   bool operator<(const StringBuffer& other) const {
+  //     return strcmp(value, other.value) < 0;
+  //   }
+  //   char value[];
+  // };
 
-  inline std::ostream& operator<<(std::ostream& os, const StringBuffer& s)
-  {
-    os << s.value;
-    return os;
-  }
+  // inline std::ostream& operator<<(std::ostream& os, const StringBuffer& s)
+  // {
+  //   os << s.value;
+  //   return os;
+  // }
 
-  using String = StringBuffer;
-  using Symbol = StringBuffer;
+  using String = std::string;
+  using Symbol = std::string;
 
   struct Number {
     Number(int64_t i) : value(i) {}
@@ -121,12 +118,16 @@ namespace minou
 
   Cons* alloc_cons(Atom a, Cons *next);
 
+
+  String *alloc_string(const char *s);
+  Symbol *alloc_symbol(const char *s);
   inline Atom make_symbol(const std::string& s)
   {
     Atom a;
     a.type = AtomType::Symbol;
-    a.symbol = new Symbol(s);
+    a.symbol = alloc_symbol(s.c_str());
 
+    printf("a.symbol = %p\n", a.symbol);
     return a;
   }
 
@@ -134,7 +135,8 @@ namespace minou
   {
     Atom a;
     a.type = AtomType::String;
-    a.string = new String(s);
+    a.string = alloc_string(s.c_str());
+    printf("a.string = %p\n", a.string);
     return a;
   }
 
@@ -195,6 +197,28 @@ inline Atom cons(const Atom item, Cons* list) {
   return make_cons(item, list);
 }
 
+  void clear_used();
+  void visit(char *address);
+  void sweep();
+
+
+}
+
+#include "memory.hpp"
+#include "eval.hpp"
+
+namespace minou {
+  class Engine
+  {
+  public:
+    virtual ~Engine() {
+      gc.mark_and_sweep(&global);
+    }
+    EvalResult eval(const char *);
+  private:
+    GC  gc;
+    Env global = default_env();
+  };
 
 }
 

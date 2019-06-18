@@ -37,6 +37,11 @@ int main()
     } catch(const ParseException& e) {
       std::cout << "ERROR: " << e.what() << std::endl;
     }
+    free(line);
+
+    clear_used();
+    walk_env(&e);
+    sweep();
   }
 
   cout << "Bye!" << endl;
