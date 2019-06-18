@@ -70,7 +70,7 @@ struct Parser {
     Memory& memory;
 
     ParseResult quote_atom(Atom a) {
-        std::vector<Atom> lis{memory.alloc_symbol("quote"), a};
+        std::vector<Atom> lis{memory.alloc<Symbol>("quote"), a};
         return memory.make_list(lis);
     }
 

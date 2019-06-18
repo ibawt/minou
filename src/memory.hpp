@@ -43,14 +43,6 @@ public:
         free_all();
     }
 
-    Symbol* alloc_symbol(const std::string &s) {
-        return alloc<Symbol>(s);
-    }
-
-    String* alloc_string(const std::string &s) {
-        return alloc<String>(s);
-    }
-
     Cons* make_list(const std::vector<Atom>& list) {
         Cons *c = nullptr;
         Cons *head = nullptr;
@@ -79,6 +71,7 @@ public:
         auto t = new(head->buff) T(std::forward<Args>(args)...);
         return t;
     }
+private:
 
     void free_all();
     void mark(Env* env);
