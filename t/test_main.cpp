@@ -39,7 +39,7 @@ TEST(Parsing, AllTheThings) {
         { "-1", Atom(-1L) },
         { "nil", Atom() },
         { "foo", m.alloc<Symbol>("foo") },
-        { "\"stuff\"", m.alloc<Symbol>("stuff")},
+        { "\"stuff\"", m.alloc<String>("stuff")},
         { "#t", Atom(true)},
         { "#f", Atom(false)},
     };
