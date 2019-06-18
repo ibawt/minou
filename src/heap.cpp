@@ -141,22 +141,6 @@ Cons* alloc_cons(Atom a, Cons *next = nullptr)
     return new(heap->buff) Cons(a, next);
 }
 
-    template<typename T>
-    constexpr AtomType type(Symbol* s) {
-        return AtomType::Symbol;
-    }
-
-    constexpr AtomType type(String* s) {
-        return AtomType::String;
-    }
-
-    constexpr AtomType type(Lambda *l) {
-        return AtomType::Procedure;
-    }
-
-    constexpr AtomType type(Cons* s) {
-        return AtomType::Cons;
-    }
 
 template<typename T, typename... Args>
 HeapNode* alloc(Args&& ...args) {

@@ -13,38 +13,27 @@ using std::endl;
 
 int main()
 {
-  auto e = default_env();
-  BottomCont cont;
+    Engine engine;
 
-  for(;;) {
-    auto line = readline(">");
+    for(;;) {
+        auto line = readline(">");
 
-    if(!line) {
-      break;
+        if(!line) {
+            break;
+        }
+
+        auto result = engine.eval(line);
+
+        if (!is_error(result)) {
+            cout << std::get<Atom>(result).to_string() << endl;
+        } else {
+            cout << "ERR: " <<  std::get<std::string>(result) << endl;
+        }
+
+        free(line);
     }
 
-    try {
-      auto a = parse(line, strlen(line));
+    cout << "Bye!" << endl;
 
-      auto result = eval(a, &e, &cont);
-
-      if (!is_error(result)) {
-        cout << std::get<Atom>(result).to_string() << endl;
-      } else {
-        cout << "ERR: " <<  std::get<std::string>(result) << endl;
-      }
-
-    } catch(const ParseException& e) {
-      std::cout << "ERROR: " << e.what() << std::endl;
-    }
-    free(line);
-
-    clear_used();
-    walk_env(&e);
-    sweep();
-  }
-
-  cout << "Bye!" << endl;
-
-  return 0;
+    return 0;
 }

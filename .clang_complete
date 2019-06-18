@@ -1,1 +1,3 @@
 -std=c++1z
+-Ibuild/googletest-src/googletest/include
+-Isrc

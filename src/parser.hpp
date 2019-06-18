@@ -3,22 +3,15 @@
 
 #include <stdexcept>
 #include <variant>
-#include "minou.hpp"
 
+#include "minou.hpp"
+#include "memory.hpp"
 
 namespace minou {
 
-class ParseException : public std::runtime_error
-{
-public:
-  ParseException(const char *s) : std::runtime_error(s) {}
-};
+using ParseResult = std::variant<Atom, std::string>;
+ParseResult parse(Memory&, const std::string&);
 
-Atom parse(const char*, size_t);
-
-inline Atom parse(const std::string& s) {
-  return parse(s.c_str(), s.size()); 
-}
 }
 
 #endif

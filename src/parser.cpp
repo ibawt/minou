@@ -1,215 +1,234 @@
-#include <cstdio>
-#include <stdexcept>
-#include <vector>
 #include "parser.hpp"
 
 namespace minou {
+
+static std::optional<int64_t> parse_integer(const std::string& s)
+{
+    char *end;
+
+    errno = 0;
+    int64_t i = strtol(s.c_str(), &end, 10);
+    if (errno != 0 ) {
+        return {};
+    }
+
+    if (end != s.c_str() + s.size()) {
+        return {};
+    }
+
+    if( end == s.c_str() ) {
+        return {};
+    }
+
+    return i;
+}
+
 class Buffer
 {
 public:
-  Buffer(const char *buffer, const size_t len) : buffer(buffer), len(len) {}
+    Buffer(const std::string& s) : buffer(s) {}
 
-  int peek() const {
-    if (position >= len) {
-      return EOF;
+    void read_to_new_line() {
+        for(;;) {
+            int c = next();
+            if ( c == '\n' || c == EOF) {
+                return;
+            }
+        }
     }
-    return buffer[position];
-  }
 
-  int next() {
-    if(position >= len) {
-      return EOF;
+    int peek() const {
+        if (position >= buffer.size()) {
+            return EOF;
+        }
+        return buffer[position];
     }
-    return buffer[position++];
-  }
+
+    int next() {
+        if(position >= buffer.size()) {
+            return EOF;
+        }
+        return buffer[position++];
+    }
 private:
-  const char  *buffer;
-  const size_t len;
-  size_t       position = 0;
+  const std::string_view buffer;
+  size_t                 position = 0;
 };
 
-static void read_to_new_line(Buffer& buff)
+static ParseResult error(const char *s)
 {
-  for(;;) {
-    int c = buff.next();
-    if ( c == '\n' || c == EOF) {
-      return;
+    return std::string(s);
+}
+
+static bool is_parse_error(const ParseResult& p)
+{
+    return std::holds_alternative<std::string>(p);
+}
+
+static Atom get_parse_atom(const ParseResult& p)
+{
+    return std::get<Atom>(p);
+}
+
+struct Parser {
+    Buffer buff;
+    Memory& memory;
+
+    ParseResult quote_atom(Atom a) {
+        std::vector<Atom> lis{memory.alloc_symbol("quote"), a};
+        return memory.make_list(lis);
     }
-  }
-}
 
-static Atom parse_atom(Buffer& buff);
+    std::optional<std::string> read_value() {
+        std::vector<char> out;
 
-static Atom parse_list(Buffer& buff)
-{
-  std::vector<Atom> list;
+        for(;;) {
+            int c = buff.peek();
 
-  for(;;) {
-    int c = buff.peek();
-    if(c ==  ')') {
-      buff.next();
-      break;
-    } else if(c == EOF) {
-      throw ParseException("eof while reading list");
-    } else {
-      if( isspace(c)) {
-        buff.next();
-      } else {
-        auto atom = parse_atom(buff);
-        list.push_back(atom);
-      }
-    }
-  }
-  return make_list(list);
-}
-
-
-static Atom quote_atom(Atom a)
-{
-  return make_list({make_symbol("quote"), a});
-}
-
-static std::string read_value(Buffer& buff)
-{
-  std::vector<char> out;
-
-  for(;;) {
-    int c = buff.peek();
-
-    switch(c) {
-    case EOF:
-      if(out.size() > 0) {
-        return std::string(out.data(), out.size());
-      }
-      throw ParseException("value eof");
-    default:
-      if(!isspace(c) && c != ')') {
-        buff.next();
-        out.push_back(c);
-      } else {
-        return std::string(out.data(), out.size());
-      }
-    }
-  }
-}
-
-static Atom read_string(Buffer& buff)
-{
-  std::vector<char> out;
-
-  for (;;) {
-    int c = buff.peek();
-
-    switch(c) {
-    case '\\':
-      {
-        buff.next();
-        int c = buff.peek();
-        switch(c) {
-        case EOF:
-          throw ParseException("eof");
-        default:
-          out.push_back(c);
+            switch(c) {
+            case EOF:
+                if(out.size() > 0) {
+                    return std::string(out.data(), out.size());
+                }
+                return {};
+            default:
+                if(!isspace(c) && c != ')') {
+                    buff.next();
+                    out.push_back(c);
+                } else {
+                    return std::string(out.data(), out.size());
+                }
+            }
         }
-      }
-      break;
-    case '"':
-      buff.next();
-      return make_string(std::string(out.data(), out.size()));
-    case EOF:
-      throw ParseException("eof");
-    default:
-      out.push_back(buff.next());
     }
-  }
-}
 
-static bool parse_integer(const std::string& s, int64_t *i)
-{
-  errno = 0;
-  char *end;
+    ParseResult parse_list() {
+        std::vector<Atom> list;
 
-  *i = strtol(s.c_str(), &end, 10);
-  if (errno != 0 ) {
-    return false;
-  }
-
-  if (end != s.c_str() + s.size()) {
-    return false;
-  }
-
-  if( end == s.c_str() ) {
-    return false;
-  }
-
-  return true;
-}
-
-static Atom read_atom(Buffer& buff)
-{
-  if(buff.peek() == '"') {
-    buff.next();
-    return read_string(buff);
-  }
-  auto v = read_value(buff);
-
-  if(v == "nil") {
-    return make_nil();
-  } else if(v == "#t") {
-    return Atom(true);
-  }
-  else if( v == "#f") {
-    return Atom(false);
-  }
-
-  if (v.size() == 0 ) {
-    throw ParseException("I think this invalid");
-  }
-
-  if (isdigit(v[0]) || v[0] == '-') {
-    int64_t i;
-    if(parse_integer(v, &i)) {
-      return Atom(i);
+        for(;;) {
+            int c = buff.peek();
+            if(c ==  ')') {
+                buff.next();
+                break;
+            } else if(c == EOF) {
+                return error("eof while reading list");
+            } else {
+                if( isspace(c)) {
+                    buff.next();
+                } else {
+                    auto atom = parse_atom();
+                    if(is_parse_error(atom)) {
+                        return atom;
+                    }
+                    list.push_back(get_parse_atom(atom));
+                }
+            }
+        }
+        return memory.make_list(list);
     }
-  }
 
-  return make_symbol(v);
-}
+    ParseResult read_string() {
+        std::vector<char> out;
 
-static Atom parse_atom(Buffer& buff) {
-  for (;;) {
-    int c = buff.peek();
-    switch( c ) {
-    case EOF:
-      throw ParseException("eof in parse_atom");
-    case '\'':
-      {
-        buff.next();
-        return quote_atom(parse_atom(buff));
-      }
-    case '(':
-      buff.next();
-      return parse_list(buff);
-    case ';':
-      buff.next();
-      read_to_new_line(buff);
-      break;
-    default:
-      if (isspace(c)) {
-        buff.next();
-      } else {
-        return read_atom(buff);
-      }
+        for (;;) {
+            int c = buff.peek();
+
+            switch(c) {
+            case '\\':
+            {
+                buff.next();
+                int c = buff.peek();
+                switch(c) {
+                case EOF:
+                    return error("eof");
+                default:
+                    out.push_back(c);
+                }
+            }
+            break;
+            case '"':
+                buff.next();
+                return memory.alloc<String>(std::string(out.data(), out.size()));
+            case EOF:
+                return error("eof");
+            default:
+                out.push_back(buff.next());
+            }
+        }
     }
-  }
-  throw std::runtime_error("invalid parse");
-}
 
+    ParseResult parse_atom() {
+        for (;;) {
+            int c = buff.peek();
+            switch( c ) {
+            case EOF:
+                return error("eof");
+            case '\'':
+            {
+                buff.next();
+                auto result = parse_atom();
+                if(is_parse_error(result)) {
+                    return result;
+                }
+                return quote_atom(get_parse_atom(result));
+            }
+            case '(':
+                buff.next();
+                return parse_list();
+            case ';':
+                buff.next();
+                buff.read_to_new_line();
+                break;
+            default:
+                if (isspace(c)) {
+                    buff.next();
+                } else {
+                    return read_atom();
+                }
+            }
+        }
+        throw std::runtime_error("invalid parse");
+    }
 
-Atom parse(const char* buffer,const size_t len)
+    ParseResult read_atom() {
+        if(buff.peek() == '"') {
+            buff.next();
+            return read_string();
+        }
+        auto result = read_value();
+        if(!result.has_value()) {
+            return error("EOF");
+        }
+
+        auto v = result.value();
+
+        if(v == "nil") {
+            return make_nil();
+        } else if(v == "#t") {
+            return Atom(true);
+        }
+        else if( v == "#f") {
+            return Atom(false);
+        }
+
+        if (v.size() == 0 ) {
+            return error("invalid atom size");
+        }
+
+        if (isdigit(v[0]) || v[0] == '-') {
+            auto r = parse_integer(v);
+            if(r.has_value()) {
+                return Atom(r.value());
+            }
+        }
+        return memory.alloc<Symbol>(v);
+    }
+};
+
+ParseResult parse(Memory& mem, const std::string& s)
 {
-  Buffer buff(buffer,len);
-
-  return parse_atom(buff);
+    Parser p{Buffer(s), mem};
+    return p.parse_atom();
 }
+
 }

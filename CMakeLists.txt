@@ -37,13 +37,20 @@ endif()
 set (main src/main.cpp)
 
 set(files
+  src/base.hpp
+  src/types.hpp
+  src/env.hpp
+  src/env.cpp
+  src/memory.hpp
+  src/memory.cpp
+  src/engine.hpp
+  src/engine.cpp
   src/minou.hpp
   src/minou.cpp
   src/parser.cpp
   src/parser.hpp
   src/eval.cpp
   src/eval.hpp
-  src/heap.cpp
   )
 
 add_executable(minou ${main} ${files})

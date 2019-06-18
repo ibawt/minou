@@ -5,19 +5,24 @@
 #include <map>
 #include <variant>
 #include <optional>
-#include "minou.hpp"
+#include <functional>
+
+#include "types.hpp"
 
 namespace minou {
 
-typedef std::variant<Atom, std::string> EvalResult;
+class Engine;
 
-inline bool is_error(const EvalResult& er) {
-  return std::holds_alternative<std::string>(er);
+using EvalResult = std::variant<Atom, std::string>;
+
+template<typename T>
+inline bool is_error(const T& er) {
+    return std::holds_alternative<std::string>(er);
 }
 
 inline Atom get_atom(const EvalResult& er)
 {
-  return std::get<Atom>(er);
+    return std::get<Atom>(er);
 }
 
 inline std::string get_error(const EvalResult& er)
@@ -25,111 +30,54 @@ inline std::string get_error(const EvalResult& er)
   return std::get<std::string>(er);
 }
 
-class Env
-{
-public:
-  Env(Env* parent) : parent(parent) {}
-    Env() : parent({}) {}
-
-  std::optional<Atom> lookup(const Symbol& key) {
-    auto f = map.find(key);
-
-    if(f == map.end()) {
-      if( parent.has_value() ) {
-        return parent.value()->lookup(key);
-      }
-      return {};
-    }
-    return f->second;
-  }
-
-  void set(const Symbol& key, Atom value) {
-      map[key] = value;
-  }
-
-    std::variant<Env*, std::string> extend(Cons *args, Cons* vars) {
-        Env *e = nullptr;
-
-        for(;;) {
-            if ((args && !vars) ||  (!args && vars)) {
-                return std::string("wrong arity");
-            }
-            if(!(args && vars)) {
-                break;
-            }
-
-            auto k = args->car;
-            auto v = vars->car;
-
-            if(!k.cons && !v.cons) {
-                break;
-            }
-
-            if( k.type != AtomType::Symbol) {
-                return std::string("invalid argument type:" + k.cons->car.to_string()) ;
-            }
-
-            if(!e) {
-                e = new Env();
-            }
-            e->set(*k.symbol, v);
-
-            args = args->cdr;
-            vars = vars->cdr;
-        }
-        return e;
-    }
-    std::map<const std::string, Atom> map;
-  std::optional<Env*> parent;
-};
-
 class Continuation
 {
 public:
-  virtual EvalResult resume(Atom) = 0;
+    virtual EvalResult resume(Engine*, Atom) = 0;
 };
 
 class BottomCont : public Continuation
 {
 public:
-  EvalResult resume(Atom a) override {
+    EvalResult resume(Engine *, Atom a) override {
     return a;
   }
 };
+
+class Env;
+
 class Procedure {
 public:
-    virtual EvalResult invoke(Cons* args, Env *env, Continuation *k) = 0;
+    virtual EvalResult invoke(Engine*, Cons* args, Env *env, Continuation *k) = 0;
     virtual void visit() {}
 };
 
-    Env default_env();
-    void walk_env(Env *);
-    void visit_atom(Atom&a);
+class Lambda : public Procedure
+{
+public:
+    Lambda(Cons *variables, Cons* body, Env *env) :
+        variables(variables), body(body), env(env) {}
+    EvalResult invoke(Engine* ,Cons *args, Env *env, Continuation *k) override;
+private:
+    Cons *variables;
+    Cons *body;
+    Env  *env;
+};
 
+using Applicative = EvalResult(Engine *, Cons *args, Env *env, Continuation *k);
 
-    class Lambda : public Procedure
-    {
-    public:
-        Lambda(Cons *variables, Cons* body, Env *env) :
-            variables(variables), body(body), env(env) {}
+class Primitive : public Procedure
+{
+public:
+    Primitive(std::function<Applicative> x) : op(x) {}
+    EvalResult invoke(Engine* eng, Cons *args, Env *env, Continuation *k) override {
+        return op(eng, args, env, k);
+    }
+private:
+    std::function<Applicative> op;
+};
 
-        EvalResult invoke(Cons *args, Env *env, Continuation *k) override;
-
-        void visit() override {
-            Atom a = Atom(variables);
-            visit_atom(a);
-            Atom b = Atom(body);
-            visit_atom(b);
-            walk_env(env);
-        }
-    private:
-        Cons *variables;
-        Cons *body;
-        Env  *env;
-    };
-
-EvalResult eval(Atom a, Env*, Continuation*);
-Lambda* alloc_lambda(Cons*, Cons*, Env*);
+EvalResult eval(Engine*, Atom a, Env*, Continuation*);
 }
 
 
