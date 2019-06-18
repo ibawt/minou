@@ -17,7 +17,7 @@ void Memory::free_all()
 }
 
 
-void Memory::mark_atom(Atom a)
+void mark_atom(Atom a)
 {
     switch(a.type) {
     case AtomType::String:
@@ -27,7 +27,7 @@ void Memory::mark_atom(Atom a)
         visit((char *)a.symbol);
         break;
     case AtomType::Cons:
-        a.cons->for_each([this](Cons *c){
+        a.cons->for_each([](Cons *c){
                              visit((char *)c);
                              mark_atom(c->car);
                          });
@@ -40,9 +40,9 @@ void Memory::mark_atom(Atom a)
     }
 }
 
-void Memory::mark(Env *env)
+void mark(Env *env)
 {
-    env->for_each([this](const Symbol& key UNUSED, Atom value) {
+    env->for_each([](const Symbol& key UNUSED, Atom value) {
                       mark_atom(value);
                   });
 }

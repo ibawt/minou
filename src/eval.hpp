@@ -9,6 +9,7 @@
 
 #include "types.hpp"
 #include "base.hpp"
+#include "memory.hpp"
 
 namespace minou {
 
@@ -39,6 +40,7 @@ class Env;
 
 class Procedure {
 public:
+    virtual ~Procedure() {}
     virtual EvalResult invoke(Engine*, Cons* args, Env *env, Continuation *k) = 0;
     virtual void visit() {}
 };
@@ -49,6 +51,12 @@ public:
     Lambda(Cons *variables, Cons* body, Env *env) :
         variables(variables), body(body), env(env) {}
     EvalResult invoke(Engine* ,Cons *args, Env *env, Continuation *k) override;
+
+    void visit() override {
+        mark_atom(variables);
+        mark_atom(body);
+        mark(env);
+    }
 private:
     Cons *variables;
     Cons *body;

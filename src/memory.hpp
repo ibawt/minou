@@ -11,22 +11,8 @@ namespace minou {
 class Lambda;
 class Env;
 
-template<typename T>
-constexpr AtomType type(Symbol*) {
-    return AtomType::Symbol;
-}
-
-constexpr AtomType type(String*) {
-    return AtomType::String;
-}
-
-constexpr AtomType type(Lambda *) {
-    return AtomType::Procedure;
-}
-
-constexpr AtomType type(Cons*) {
-    return AtomType::Cons;
-}
+void mark_atom(Atom);
+void mark(Env* env);
 
 struct HeapNode {
     HeapNode(int size, HeapNode* next = nullptr) : size(size), next(next) {}
@@ -41,7 +27,7 @@ struct HeapNode {
     }
 };
 
-inline void visit(char* address)
+inline void visit(const char* address)
 {
     assert(address);
     auto p = (HeapNode *)(address - sizeof(HeapNode) + sizeof(void*));
@@ -84,11 +70,8 @@ public:
         return t;
     }
 private:
-
     void free_all();
 
-    void mark_atom(Atom);
-    void mark(Env* env);
 
     void sweep();
 
