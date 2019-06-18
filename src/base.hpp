@@ -27,12 +27,6 @@ inline std::ostream& operator<<(std::ostream& os, const Error& e)
     return os;
 }
 
-template <typename T>
-std::variant<T, std::string> error(const std::string& s)
-{
-    return s;
-}
-
 template<typename T>
 inline bool is_error(std::variant<T, const Error> v)
 {
@@ -40,6 +34,18 @@ inline bool is_error(std::variant<T, const Error> v)
 }
 template<typename T>
 using Result = std::variant<T, const Error>;
+
+template<typename T>
+inline std::ostream& operator<<(std::ostream& os, const Result<T>& r)
+{
+    if (is_error(r)) {
+        os << "ERROR: " << get_error(r);
+    } else {
+        os << get_value(r);
+    }
+    return os;
+}
+
 
 template<typename T>
 const Error get_error(Result<T> result)

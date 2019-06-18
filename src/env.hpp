@@ -3,6 +3,7 @@
 
 #include <optional>
 #include <map>
+#include <functional>
 
 #include "base.hpp"
 #include "types.hpp"
@@ -27,6 +28,12 @@ public:
             return {};
         }
         return f->second;
+    }
+
+    void for_each(std::function<void(const Symbol&, Atom)> f) {
+        for(auto [key, value] : map) {
+            f(key, value);
+        }
     }
 
     void set(const Symbol& key, Atom value) {

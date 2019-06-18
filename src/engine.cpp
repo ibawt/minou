@@ -6,12 +6,13 @@ namespace minou {
 
 EvalResult Engine::eval(const std::string& s)
 {
+    memory.mark_and_sweep(&global);
+
     auto atom = parse(memory, s);
 
     if (is_error(atom)) {
         return atom;
     }
-
 
     BottomCont cont;
 

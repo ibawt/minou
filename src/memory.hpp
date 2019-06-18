@@ -2,6 +2,7 @@
 #define MEMORY_H_
 
 #include <vector>
+#include <cassert>
 
 #include "types.hpp"
 
@@ -31,10 +32,21 @@ struct HeapNode {
     HeapNode(int size, HeapNode* next = nullptr) : size(size), next(next) {}
     AtomType type;
     int  size;
-    bool used = 0;
+    bool used = false;
     HeapNode *next;
     char buff[];
+
+    void visit() {
+        used = true;
+    }
 };
+
+inline void visit(char* address)
+{
+    assert(address);
+    auto p = (HeapNode *)(address - sizeof(HeapNode) + sizeof(void*));
+    p->visit();
+}
 
 class Memory
 {
@@ -74,7 +86,10 @@ public:
 private:
 
     void free_all();
+
+    void mark_atom(Atom);
     void mark(Env* env);
+
     void sweep();
 
     HeapNode *head = nullptr;

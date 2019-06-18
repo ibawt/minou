@@ -3,6 +3,7 @@
 
 #include <string>
 #include <variant>
+#include <functional>
 
 namespace minou {
 
@@ -62,14 +63,6 @@ struct Atom
     Atom(Symbol *s) : type(AtomType::Symbol), symbol(s) {}
     Atom(String *s) : type(AtomType::String), string(s) {}
 
-    bool is_list() const {
-        return type == AtomType::Cons;
-    }
-
-    bool is_pair() const {
-        return type == AtomType::Cons && cons;
-    }
-
     AtomType type;
     union {
         Number     integer;
@@ -104,6 +97,15 @@ struct Atom
         return false;
     }
     std::string to_string() const;
+
+    bool is_list() const {
+        return type == AtomType::Cons;
+    }
+
+    bool is_pair() const {
+        return type == AtomType::Cons && cons;
+    }
+
 };
 
 std::ostream& operator<<(std::ostream&os, const Atom& a);
@@ -112,9 +114,22 @@ struct Cons {
     Cons(Atom car, Cons *cdr = nullptr) : car(car), cdr(cdr) {}
     Atom  car;
     Cons *cdr;
+
+    void for_each(std::function<void(Cons*)> f) {
+        Cons *c = cdr;
+        for(;;) {
+            if(!c)
+                return;
+            f(c);
+            c = c->cdr;
+        }
+    }
 };
 
+
 bool equalsp(const Atom& a, const Atom& b);
+
+
 }
 
 #endif
