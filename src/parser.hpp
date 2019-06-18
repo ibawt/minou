@@ -11,7 +11,7 @@ namespace minou {
 
 using ParseResult = Result<Atom>;
 
-ParseResult parse(Memory&, const std::string&);
+ParseResult parse(Memory&, const std::string_view&);
 
 
 }

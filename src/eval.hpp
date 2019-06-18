@@ -6,6 +6,7 @@
 #include <variant>
 #include <optional>
 #include <functional>
+#include <memory>
 
 #include "types.hpp"
 #include "base.hpp"
@@ -41,16 +42,17 @@ class Env;
 class Procedure {
 public:
     virtual ~Procedure() {}
-    virtual EvalResult invoke(Engine*, Cons* args, Env *env, Continuation *k) = 0;
+    virtual EvalResult invoke(Engine*, Cons* args, std::shared_ptr<Env>& env, Continuation *k) = 0;
     virtual void visit() {}
 };
 
 class Lambda : public Procedure
 {
 public:
-    Lambda(Cons *variables, Cons* body, Env *env) :
+    Lambda(Cons *variables, Cons* body, std::shared_ptr<Env> env) :
         variables(variables), body(body), env(env) {}
-    EvalResult invoke(Engine* ,Cons *args, Env *env, Continuation *k) override;
+
+    EvalResult invoke(Engine* ,Cons *args, std::shared_ptr<Env>& env, Continuation *k) override;
 
     void visit() override {
         mark_atom(variables);
@@ -60,23 +62,23 @@ public:
 private:
     Cons *variables;
     Cons *body;
-    Env  *env;
+    std::shared_ptr<Env> env;
 };
 
-using Applicative = EvalResult(Engine *, Cons *args, Env *env, Continuation *k);
+using Applicative = EvalResult(Engine *, Cons *args, std::shared_ptr<Env>& env, Continuation *k);
 
 class Primitive : public Procedure
 {
 public:
     Primitive(std::function<Applicative> x) : op(x) {}
-    EvalResult invoke(Engine* eng, Cons *args, Env *env, Continuation *k) override {
+    EvalResult invoke(Engine* eng, Cons *args, std::shared_ptr<Env>& env, Continuation *k) override {
         return op(eng, args, env, k);
     }
 private:
     std::function<Applicative> op;
 };
 
-EvalResult eval(Engine*, Atom a, Env*, Continuation*);
+EvalResult eval(Engine*, Atom a, std::shared_ptr<Env>&, Continuation*);
 }
 
 

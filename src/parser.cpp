@@ -26,7 +26,7 @@ static std::optional<int64_t> parse_integer(const std::string& s)
 class Buffer
 {
 public:
-    Buffer(const std::string& s) : buffer(s) {}
+    Buffer(const std::string_view& s) : buffer(s) {}
 
     void read_to_new_line() {
         for(;;) {
@@ -220,7 +220,7 @@ struct Parser {
     }
 };
 
-ParseResult parse(Memory& mem, const std::string& s)
+ParseResult parse(Memory& mem, const std::string_view& s)
 {
     Parser p{Buffer(s), mem};
     return p.parse_atom();

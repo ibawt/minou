@@ -40,7 +40,7 @@ void mark_atom(Atom a)
     }
 }
 
-void mark(Env *env)
+void mark(std::shared_ptr<Env>& env)
 {
     env->for_each([](const Symbol& key UNUSED, Atom value) {
                       mark_atom(value);
@@ -85,16 +85,15 @@ void Memory::sweep()
             assert(t);
             free(t);
         } else {
-            h->used = 0;
+            h->used = false;
             h = h->next;
         }
     }
     this->head = head;
 }
 
-void Memory::mark_and_sweep(Env *root)
+void Memory::mark_and_sweep(std::shared_ptr<Env>& root)
 {
-    assert(root);
     mark(root);
     sweep();
 }

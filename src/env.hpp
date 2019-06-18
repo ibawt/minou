@@ -4,6 +4,7 @@
 #include <optional>
 #include <map>
 #include <functional>
+#include <memory>
 
 #include "base.hpp"
 #include "types.hpp"
@@ -13,7 +14,7 @@ namespace minou {
 class Env
 {
 public:
-    Env(Env* parent) : parent(parent) {}
+    Env(std::shared_ptr<Env> p) : parent(p) {}
     Env() {
         default_env();
     }
@@ -40,12 +41,10 @@ public:
         map[key] = value;
     }
 
-    std::variant<Env*, std::string> extend(Cons *args, Cons* vars) {
-        Env *e = nullptr;
-
+    Result<bool> extend(Cons *args, Cons* vars) {
         for(;;) {
             if ((args && !vars) ||  (!args && vars)) {
-                return std::string("wrong arity");
+                return "wrong arity";
             }
             if(!(args && vars)) {
                 break;
@@ -59,24 +58,21 @@ public:
             }
 
             if( k.type != AtomType::Symbol) {
-                return std::string("invalid argument type:" + k.cons->car.to_string()) ;
+                return "invalid argument type:" + k.cons->car.to_string();
             }
 
-            if(!e) {
-                e = new Env();
-            }
-            e->set(*k.symbol, v);
+            set(*k.symbol, v);
 
             args = args->cdr;
             vars = vars->cdr;
         }
-        return e;
+        return true;
     }
 private:
     void default_env();
 
     std::map<const Symbol, Atom> map;
-    std::optional<Env*> parent;
+    std::optional<std::shared_ptr<Env>> parent;
 };
 
 

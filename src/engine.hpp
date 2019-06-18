@@ -10,13 +10,14 @@ namespace minou {
 class Engine
 {
 public:
-    EvalResult eval(const std::string& s);
-    EvalResult eval(const char *s) { return eval(std::string(s)); }
+    Engine() : global(std::make_shared<Env>()) {}
+    EvalResult eval(const std::string_view& s);
+    EvalResult eval(const char *s) { return eval(std::string_view(s)); }
 
     Memory& get_memory() { return memory; }
 private:
     Memory  memory;
-    Env     global;
+    std::shared_ptr<Env>     global;
 };
 
 }

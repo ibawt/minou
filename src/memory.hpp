@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <cassert>
+#include <memory>
 
 #include "types.hpp"
 
@@ -12,7 +13,7 @@ class Lambda;
 class Env;
 
 void mark_atom(Atom);
-void mark(Env* env);
+void mark(std::shared_ptr<Env>& env);
 
 struct HeapNode {
     HeapNode(int size, HeapNode* next = nullptr) : size(size), next(next) {}
@@ -59,7 +60,7 @@ public:
         return head;
     }
 
-    void mark_and_sweep(Env* root);
+    void mark_and_sweep(std::shared_ptr<Env>& root);
 
     template<typename T, typename... Args>
     T* alloc(Args&& ...args) {

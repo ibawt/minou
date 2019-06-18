@@ -10,7 +10,6 @@ namespace minou {
     assert(a.type == AtomType::Cons);
     const Cons *cur = a.cons;
     if(!cur) {
-      s << ")";
       return ;
     }
 
