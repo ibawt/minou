@@ -4,7 +4,6 @@
 #include <string>
 #include <variant>
 
-
 namespace minou {
 
 enum class AtomType {
@@ -37,6 +36,7 @@ inline std::ostream& operator<<(std::ostream&os, const Symbol& a) {
     os << a.string;
     return os;
 }
+
 struct Number {
     Number(int64_t i) : value(i) {}
     union {

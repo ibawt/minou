@@ -8,26 +8,17 @@
 #include <functional>
 
 #include "types.hpp"
+#include "base.hpp"
 
 namespace minou {
 
 class Engine;
 
-using EvalResult = std::variant<Atom, std::string>;
-
-template<typename T>
-inline bool is_error(const T& er) {
-    return std::holds_alternative<std::string>(er);
-}
+using EvalResult = Result<Atom>;
 
 inline Atom get_atom(const EvalResult& er)
 {
     return std::get<Atom>(er);
-}
-
-inline std::string get_error(const EvalResult& er)
-{
-  return std::get<std::string>(er);
 }
 
 class Continuation

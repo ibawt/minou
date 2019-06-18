@@ -60,11 +60,6 @@ static ParseResult error(const char *s)
     return std::string(s);
 }
 
-static bool is_parse_error(const ParseResult& p)
-{
-    return std::holds_alternative<std::string>(p);
-}
-
 static Atom get_parse_atom(const ParseResult& p)
 {
     return std::get<Atom>(p);
@@ -117,7 +112,7 @@ struct Parser {
                     buff.next();
                 } else {
                     auto atom = parse_atom();
-                    if(is_parse_error(atom)) {
+                    if(is_error(atom)) {
                         return atom;
                     }
                     list.push_back(get_parse_atom(atom));
@@ -167,7 +162,7 @@ struct Parser {
             {
                 buff.next();
                 auto result = parse_atom();
-                if(is_parse_error(result)) {
+                if(is_error(result)) {
                     return result;
                 }
                 return quote_atom(get_parse_atom(result));

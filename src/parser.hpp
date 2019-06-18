@@ -9,8 +9,10 @@
 
 namespace minou {
 
-using ParseResult = std::variant<Atom, std::string>;
+using ParseResult = Result<Atom>;
+
 ParseResult parse(Memory&, const std::string&);
+
 
 }
 

@@ -2,6 +2,7 @@
 #include <iostream>
 
 
+#include "base.hpp"
 #include "main.hpp"
 #include "minou.hpp"
 #include "parser.hpp"
@@ -25,9 +26,9 @@ int main()
         auto result = engine.eval(line);
 
         if (!is_error(result)) {
-            cout << std::get<Atom>(result).to_string() << endl;
+            cout << get_value(result).to_string() << endl;
         } else {
-            cout << "ERR: " <<  std::get<std::string>(result) << endl;
+            cout << "ERR: " <<  get_error(result) << endl;
         }
 
         free(line);

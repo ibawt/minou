@@ -9,5 +9,6 @@ void Memory::free_all()
         h = h->next;
         free(t);
     }
+    head = nullptr;
 }
 }

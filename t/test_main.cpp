@@ -64,7 +64,7 @@ TEST(Parsing, InvalidThings) {
     Memory m;
     for(const auto &t : tests ) {
         auto a = parse(m, t);
-        EXPECT_TRUE(std::holds_alternative<std::string>(a));
+        EXPECT_TRUE(is_error(a));
     }
 }
 
