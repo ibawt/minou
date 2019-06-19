@@ -31,6 +31,24 @@ public:
         return f->second;
     }
 
+    bool update(const Symbol& key, Atom value) {
+        auto& m = map;
+        for (;;) {
+            auto f = m.find(key);
+
+            if( f != m.end()) {
+                f->second = value;
+                return true;
+            }
+
+            if(parent.has_value()) {
+                m = parent.value()->map;
+            } else {
+                return false;
+            }
+        }
+    }
+
     void for_each(std::function<void(const Symbol&, Atom)> f) {
         for(auto [key, value] : map) {
             f(key, value);

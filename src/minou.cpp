@@ -14,15 +14,16 @@ namespace minou {
     }
 
     for(;;) {
-      s << cur->car.to_string();
+        assert(cur);
+        s << cur->car.to_string();
 
 
-      if( cur->cdr == nullptr ) {
-        return;
-      } else {
-        s << " ";
-      }
-      cur = cur->cdr;
+        if( !cur->cdr ) {
+            return;
+        } else {
+            s << " ";
+        }
+        cur = cur->cdr;
     }
   }
 

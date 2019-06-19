@@ -33,8 +33,8 @@ class BottomCont : public Continuation
 {
 public:
     EvalResult resume(Engine *, Atom a) override {
-    return a;
-  }
+        return a;
+    }
 };
 
 class Env;
@@ -55,6 +55,7 @@ public:
     EvalResult invoke(Engine* ,Cons *args, std::shared_ptr<Env>& env, Continuation *k) override;
 
     void visit() override {
+        minou::visit((char*)this);
         mark_atom(variables);
         mark_atom(body);
         mark(env);

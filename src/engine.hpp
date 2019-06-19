@@ -14,6 +14,7 @@ public:
     EvalResult eval(const std::string_view& s);
     EvalResult eval(const char *s) { return eval(std::string_view(s)); }
 
+    void gc() { memory.mark_and_sweep(global); }
     Memory& get_memory() { return memory; }
 private:
     Memory  memory;

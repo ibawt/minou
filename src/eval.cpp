@@ -15,11 +15,46 @@ using std::endl;
 EvalResult eval_args(Engine *engine, Atom e, std::shared_ptr<Env>&, Continuation *k);
 EvalResult eval_begin(Engine *engine, Atom a, std::shared_ptr<Env>&, Continuation *k);
 
+class SetCont : public Continuation
+{
+public:
+    SetCont(Continuation *k, Atom n, std::shared_ptr<Env> env) : n(n), env(env), k(k) {}
+
+    EvalResult resume(Engine *engine, Atom a) override {
+        if(n.type != AtomType::Symbol) {
+            return std::string("must be a symbol");
+        }
+        env->update(*n.symbol, a);
+        return k->resume(engine, a);
+    }
+private:
+    Atom n;
+    std::shared_ptr<Env> env;
+    Continuation *k;
+};
+
+class DefineCont : public Continuation
+{
+public:
+    DefineCont(Continuation *k, Atom n, std::shared_ptr<Env> env) : n(n), env(env), k(k) {}
+
+    EvalResult resume(Engine *engine, Atom a) override {
+        if(n.type != AtomType::Symbol) {
+            return std::string("must be a symbol");
+        }
+        env->set(*n.symbol, a);
+        return k->resume(engine, a);
+    }
+private:
+    Atom n;
+    std::shared_ptr<Env> env;
+    Continuation *k;
+};
+
 EvalResult Lambda::invoke(Engine *engine, Cons *args, std::shared_ptr<Env>& env UNUSED, Continuation *k)
 {
     auto e = std::make_shared<Env>(this->env);
-    // auto e = this->env->extend(variables, args);
-    auto r =  e->extend(variables, args);
+    auto r = e->extend(variables, args);
 
     if(is_error(r)) {
         return get_error(r).get_message();
@@ -89,7 +124,7 @@ public:
         if(!a.is_list()) {
             return str("invalid argument");
         }
-        if(f.type !=  AtomType::Procedure) {
+        if(f.type != AtomType::Procedure) {
             return str("invalid type for apply: " + f.to_string());
         }
 
@@ -238,6 +273,15 @@ EvalResult eval(Engine *engine, Atom a, std::shared_ptr<Env>& env, Continuation*
                 IfCont ifCont(k, caddr(a.cons), cadddr(a.cons), env);
 
                 return eval(engine, a.cons->cdr->car, env, &ifCont);
+            }
+            else if(sym == "define") {
+                DefineCont sc(k, a.cons->cdr->car, env);
+                return eval(engine, a.cons->cdr->cdr->car, env, &sc);
+            }
+            else if(sym == "set!") {
+                SetCont sc(k, a.cons->cdr->car, env);
+
+                return eval(engine, a.cons->cdr->cdr->car, env, &sc);
             }
             // QUOTE
             else if (sym == "quote") {

@@ -5,6 +5,8 @@
 #include "env.hpp"
 
 namespace minou {
+using std::cout;
+using std::endl;
 
 void Memory::free_all()
 {
@@ -19,20 +21,41 @@ void Memory::free_all()
 
 void mark_atom(Atom a)
 {
+    cout << "mark_atom: " << a << endl;
     switch(a.type) {
     case AtomType::String:
+        cout << "marking a string " << a << endl;
         visit((char*)a.string);
         break;
     case AtomType::Symbol:
+        cout << "marking a symbol " << a << endl;
         visit((char *)a.symbol);
         break;
     case AtomType::Cons:
-        a.cons->for_each([](Cons *c){
-                             visit((char *)c);
-                             mark_atom(c->car);
-                         });
+        if(!a.cons) return;
+        if(has_visited((char*)a.cons)) {
+            return;
+        }
+
+        cout << "marking a car of " << a.cons->car << endl;
+        {
+            auto c = a.cons;
+            for(;;) {
+                if(!c)
+                    return;
+
+                visit((char*)c);
+                mark_atom(c->car);
+                c = c->cdr;
+            }
+        }
+        // a.cons->for_each([](Cons *c){
+        //                      visit((char *)c);
+        //                      mark_atom(c->car);
+        //                  });
         break;
     case AtomType::Procedure:
+        cout << "marking a procedure" << endl;
         a.procedure->visit();
         break;
     default:
@@ -64,6 +87,7 @@ void Memory::sweep()
                 head = h;
             }
 
+            printf("freeing: %d@%p\n", t->type, t);
             switch(t->type) {
             case AtomType::String:
             {
@@ -94,6 +118,7 @@ void Memory::sweep()
 
 void Memory::mark_and_sweep(std::shared_ptr<Env>& root)
 {
+    assert(root);
     mark(root);
     sweep();
 }

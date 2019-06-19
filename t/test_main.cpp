@@ -84,10 +84,29 @@ protected:
             const auto aa = std::get<Atom>(result);
             EXPECT_EQ(aa, t.expected) << t.input;
         }
+        engine.gc();
     }
     Engine engine;
 };
 
+TEST_F(EvalTest, Define) {
+    run({
+            {"(begin (define foo 1) foo)", Atom(1L)},
+            {"(begin (define foo (lambda () (+ 1 2))) (foo))", Atom(3L)}
+        });
+}
+
+TEST_F(EvalTest, Closure) {
+    run({
+            {"(begin (define foo (lambda (a) (lambda (b) (+ a b)))) ((foo 1) 2))", Atom(3L)}
+        });
+}
+
+TEST_F(EvalTest, Set) {
+    run({
+            {"(begin (define foo 1) (set! foo 2) 2)", Atom(2L)}
+        });
+}
 
 TEST_F(EvalTest, SimpleCases) {
     run({
