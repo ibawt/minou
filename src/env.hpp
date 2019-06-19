@@ -20,7 +20,7 @@ public:
     }
 
     std::optional<Atom> lookup(const Symbol& key) {
-        auto f = map.find(key);
+        auto f = map.find(key.string);
 
         if(f == map.end()) {
             if( parent.has_value() ) {
@@ -35,7 +35,7 @@ public:
       auto t = this;
 
       for (;;) {
-        auto f = t->map.find(key);
+        auto f = t->map.find(key.string);
 
         if( f != t->map.end()) {
           f->second = value;
@@ -50,14 +50,14 @@ public:
       }
     }
 
-    void for_each(std::function<void(const Symbol&, Atom)> f) {
+    void for_each(std::function<void(const std::string&, Atom)> f) {
         for(auto [key, value] : map) {
             f(key, value);
         }
     }
 
     void set(const Symbol& key, Atom value) {
-        map[key] = value;
+        map[key.string] = value;
     }
 
     Result<bool> extend(Cons *args, Cons* vars) {
@@ -90,7 +90,7 @@ public:
 private:
     void default_env();
 
-    std::map<const Symbol, Atom> map;
+    std::map<const std::string, Atom> map;
     std::optional<std::shared_ptr<Env>> parent;
 };
 

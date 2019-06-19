@@ -1,10 +1,14 @@
-#include <cassert>
 
 #include "memory.hpp"
 #include "eval.hpp"
 #include "env.hpp"
+#include <string>
+#include <iostream>
+#include <cstdlib>
+#include <cstdio>
 
 namespace minou {
+
 using std::cout;
 using std::endl;
 
@@ -34,7 +38,8 @@ void mark_atom(Atom a)
     case AtomType::Cons:
         if(!a.cons) return;
         if(has_visited((char*)a.cons)) {
-            return;
+          cout << "i visited and now am going to return!" << endl;
+          return;
         }
 
         cout << "marking a car of " << a.cons->car << endl;
@@ -49,10 +54,6 @@ void mark_atom(Atom a)
                 c = c->cdr;
             }
         }
-        // a.cons->for_each([](Cons *c){
-        //                      visit((char *)c);
-        //                      mark_atom(c->car);
-        //                  });
         break;
     case AtomType::Procedure:
         cout << "marking a procedure" << endl;
@@ -65,9 +66,9 @@ void mark_atom(Atom a)
 
 void mark(std::shared_ptr<Env>& env)
 {
-    env->for_each([](const Symbol& key UNUSED, Atom value) {
-                      mark_atom(value);
-                  });
+  env->for_each([](const std::string& key, Atom value) {
+                  mark_atom(value);
+                });
 }
 
 void Memory::sweep()

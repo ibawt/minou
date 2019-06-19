@@ -55,11 +55,15 @@ public:
     EvalResult invoke(Engine* ,Cons *args, std::shared_ptr<Env>& env, Continuation *k) override;
 
     void visit() override {
-        minou::visit((char*)this);
-        mark_atom(variables);
-        mark_atom(body);
-        mark(env);
+      if(has_visited((char*)this)) {
+          return;
+      }
+      minou::visit((char *)this);
+      mark_atom(variables);
+      mark_atom(body);
+      mark(env);
     }
+
 private:
     Cons *variables;
     Cons *body;
