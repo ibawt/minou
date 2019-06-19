@@ -17,6 +17,19 @@ enum class AtomType {
     Procedure
 };
 
+struct Boolean {
+  Boolean(bool b) : b(b) {}
+  bool b;
+
+  bool operator()() const {
+    return b;
+  }
+
+  bool operator==(const Boolean& other) const {
+    return b == other.b;
+  }
+};
+
 using String = std::string;
 
 class Symbol {
@@ -58,7 +71,7 @@ struct Atom
     Atom() : type(AtomType::Nil), cons(nullptr) {}
     Atom(int64_t i) : type(AtomType::Number), integer(i) {}
     Atom(Cons *cons) : type(AtomType::Cons), cons(cons) {}
-    Atom(bool b) : type(AtomType::Boolean), boolean(b) {}
+    Atom(Boolean b) : type(AtomType::Boolean), boolean(b) {}
     Atom(Procedure *p) : type(AtomType::Procedure), procedure(p) {}
     Atom(Symbol *s) : type(AtomType::Symbol), symbol(s) {}
     Atom(String *s) : type(AtomType::String), string(s) {}
@@ -69,7 +82,7 @@ struct Atom
         Cons      *cons;
         Symbol    *symbol;
         String    *string;
-        bool       boolean;
+        Boolean    boolean;
         Procedure *procedure;
     };
 

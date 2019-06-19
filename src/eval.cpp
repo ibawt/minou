@@ -102,7 +102,7 @@ public:
         true_value(t), false_value(f), k(k), env(env) {}
 
     EvalResult resume(Engine* engine, Atom a) override {
-        if(a.type == AtomType::Boolean && !a.boolean) {
+      if(a.type == AtomType::Boolean && !a.boolean()) {
             //only #f is false
             return eval(engine, false_value, env, k);
         }

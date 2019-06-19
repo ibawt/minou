@@ -96,7 +96,7 @@ namespace minou {
       s << "nil";
       break;
     case AtomType::Boolean:
-      s << (boolean ? "#t" : "#f");
+      s << (boolean() ? "#t" : "#f");
     }
     return s.str();
   }
