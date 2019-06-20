@@ -55,7 +55,10 @@ public:
         variables(variables), body(body), env(env) {}
 
   ~Lambda() {
-    delete env;
+    if(!env) {
+        delete env;
+        env = nullptr;
+      }
   }
     EvalResult invoke(Engine* ,Cons *args, EnvPtr env, Continuation *k) override;
 

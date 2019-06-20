@@ -92,7 +92,7 @@ void Memory::sweep()
     }
 }
 
-void Memory::mark_and_sweep(EnvPtr& root)
+void Memory::mark_and_sweep(EnvPtr root)
 {
     assert(root);
     mark(root);

@@ -92,7 +92,7 @@ public:
         return head;
     }
 
-    void mark_and_sweep(EnvPtr& root);
+    void mark_and_sweep(EnvPtr root);
 
     template<typename T, typename... Args>
     T* alloc(Args&& ...args) {
