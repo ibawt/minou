@@ -19,7 +19,6 @@ void Memory::free_all()
     allocations.clear();
 }
 
-
 void mark_atom(Atom a)
 {
     switch(a.type) {
@@ -57,7 +56,7 @@ void Memory::sweep()
 {
     for( auto it = allocations.begin() ; it != allocations.end() ; ) {
         auto h = *it;
-        if(!h->used) {
+        if( (h->used & (LOCKED|USED)) == USED ) {
             switch(h->type) {
             case AtomType::String:
             {
@@ -72,7 +71,7 @@ void Memory::sweep()
                 assert(a);
                 a->~Symbol();
             }
-            break;
+            break; 
             case AtomType::Lambda:
             {
                 auto a = (Lambda*)h->buff;
@@ -88,7 +87,7 @@ void Memory::sweep()
             it = allocations.erase(it);
         } else {
             ++it;
-            h->used = false;
+            h->used &= ~USED;
         }
     }
 }

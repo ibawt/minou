@@ -53,6 +53,7 @@ private:
 
 EvalResult Lambda::invoke(Engine *engine, Cons *args, std::shared_ptr<Env>& env UNUSED, Continuation *k)
 {
+    cout << "making an env from: " << this->env << endl;
     auto e = std::make_shared<Env>(this->env);
     auto r = e->extend(variables, args);
 

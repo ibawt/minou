@@ -26,6 +26,7 @@ inline Atom get_atom(const EvalResult& er)
 class Continuation
 {
 public:
+    virtual ~Continuation() {}
     virtual EvalResult resume(Engine*, Atom) = 0;
 };
 
