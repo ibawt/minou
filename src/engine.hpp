@@ -11,6 +11,10 @@ class Engine
 {
 public:
     Engine() : global(std::make_shared<Env>()) {}
+    ~Engine() {
+        global->clear();
+        memory.mark_and_sweep(global);
+    }
     EvalResult eval(const std::string_view& s);
     EvalResult eval(const char *s) { return eval(std::string_view(s)); }
 

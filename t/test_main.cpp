@@ -1,6 +1,7 @@
 #include "gtest/gtest.h"
 #include "minou.hpp"
 #include "eval.hpp"
+#include <memory>
 
 using namespace minou;
 
@@ -14,7 +15,7 @@ TEST(Memory, CheckIfTypeIsSet) {
         { m.alloc<Symbol>(""), AtomType::Symbol },
         { m.alloc<String>(""), AtomType::String },
         { m.alloc<Cons>(Atom()), AtomType::Cons },
-        { m.alloc<Lambda>(nullptr, nullptr, nullptr), AtomType::Procedure},
+        { m.alloc<Lambda>(nullptr, nullptr, nullptr), AtomType::Lambda},
     };
 
     for( const auto& t : tests ) {
@@ -76,17 +77,20 @@ struct testcase {
 
 class EvalTest : public ::testing::Test {
 protected:
+    void SetUp() override {
+        engine = std::make_unique<Engine>();
+    }
     void run(const std::vector<testcase>& tests) {
         for(const auto& t : tests) {
-            const auto result = engine.eval(t.input);
+            const auto result = engine->eval(t.input);
 
             ASSERT_FALSE(is_error(result)) << get_error(result);
             const auto aa = std::get<Atom>(result);
             EXPECT_EQ(aa, t.expected) << t.input;
         }
-        engine.gc();
+        engine->gc();
     }
-    Engine engine;
+    std::unique_ptr<Engine> engine;
 };
 
 TEST_F(EvalTest, Define) {
@@ -109,10 +113,11 @@ TEST_F(EvalTest, Set) {
 }
 
 TEST_F(EvalTest, SimpleCases) {
+    Symbol foo("foo");
     run({
         { "5", Atom(5L)},
         { "(+ 1 2)", Atom(3L)},
-        { "'foo", engine.get_memory().alloc<Symbol>("foo")},
+            { "'foo", &foo }
         });
 }
 

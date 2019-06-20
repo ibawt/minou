@@ -5,7 +5,8 @@
 #include <cassert>
 #include <memory>
 #include <string.h>
-
+#include <stddef.h>
+#include <list>
 #include "types.hpp"
 
 namespace minou {
@@ -18,37 +19,51 @@ template<typename T> AtomType type(T);
 template<> inline AtomType type(String*) { return AtomType::String; }
 template<> inline AtomType type(Symbol*) { return AtomType::Symbol; }
 template<> inline AtomType type(Cons*) { return AtomType::Cons; }
-template<> inline AtomType type(Procedure*) { return AtomType::Procedure; }
-template<> inline AtomType type(Lambda*) { return AtomType::Procedure; }
+template<> inline AtomType type(Lambda*) { return AtomType::Lambda; }
+template<> inline AtomType type(Primitive*) { return AtomType::Primitive; }
 
 void mark_atom(Atom);
 void mark(std::shared_ptr<Env>& env);
 
+typedef enum {
+   USED   = 1,
+   LOCKED = 2,
+} object_flags;
+
 struct HeapNode {
-    HeapNode(int size, HeapNode* next = nullptr) : size(size), next(next) {}
+    HeapNode(int size) : size(size) {}
     AtomType type;
     int  size;
-    bool used = false;
-    HeapNode *next;
+    int used = 0;
+    // HeapNode *next;
     char buff[];
 
-    void visit() {
-        used = true;
+    bool is_locked() {
+        return used & LOCKED;
+    }
+    bool has_visited() {
+        return used & USED;
     }
 };
 
 inline void visit(const char* address)
 {
     assert(address);
-    auto p = (HeapNode *)(address - sizeof(HeapNode) + sizeof(void*));
-    p->visit();
+    auto p = (HeapNode *)(address - offsetof(HeapNode, buff));
+    p->used |= USED;
 }
 
 inline bool has_visited(const char * address)
 {
     assert(address);
-    auto p = (HeapNode *)(address - sizeof(HeapNode) + sizeof(void*));
-    return p->used;
+    auto p = (HeapNode *)(address - offsetof(HeapNode, buff));
+    return p->used & USED;
+}
+
+inline void lock_object(const char * address)
+{
+    auto p = (HeapNode *)(address - offsetof(HeapNode, buff));
+    p->used |= LOCKED;
 }
 
 class Memory
@@ -83,11 +98,12 @@ public:
         int len = sizeof(T);
         auto block = malloc(sizeof(HeapNode) + len);
         memset(block, 0, sizeof(HeapNode) + len);
-        head = new(block) HeapNode(len, head);
-        auto t = new(head->buff) T(std::forward<Args>(args)...);
-        head->type = type(t);
-        printf("allocing %d@%p\n", (int)head->type, block);
-        assert((int)head->type != 0);
+        auto hn =  new(block) HeapNode(len);
+        allocations.push_front(hn);
+
+        auto t = new((char*)block + offsetof(HeapNode, buff)) T(std::forward<Args>(args)...);
+        hn->type = type(t);
+        assert((int)hn->type != 0);
         return t;
     }
 private:
@@ -96,7 +112,7 @@ private:
 
     void sweep();
 
-    HeapNode *head = nullptr;
+    std::list<HeapNode*> allocations;
 };
 
 

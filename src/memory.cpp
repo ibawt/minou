@@ -1,4 +1,3 @@
-
 #include "memory.hpp"
 #include "eval.hpp"
 #include "env.hpp"
@@ -14,50 +13,33 @@ using std::endl;
 
 void Memory::free_all()
 {
-    for( auto h = head ; h ;) {
-        auto t = h;
-        h = h->next;
-        free(t);
+    for( auto h : allocations) {
+        free(h);
     }
-    head = nullptr;
+    allocations.clear();
 }
 
 
 void mark_atom(Atom a)
 {
-    cout << "mark_atom: " << a << endl;
     switch(a.type) {
     case AtomType::String:
-        cout << "marking a string " << a << endl;
         visit((char*)a.string);
         break;
     case AtomType::Symbol:
-        cout << "marking a symbol " << a << endl;
         visit((char *)a.symbol);
         break;
     case AtomType::Cons:
-        if(!a.cons) return;
-        if(has_visited((char*)a.cons)) {
-          cout << "i visited and now am going to return!" << endl;
-          return;
-        }
-
-        cout << "marking a car of " << a.cons->car << endl;
-        {
-            auto c = a.cons;
-            for(;;) {
-                if(!c)
-                    return;
-
+        for(auto c = a.cons; c ; c = c->cdr) {
+            if(!has_visited((char *)c)) {
                 visit((char*)c);
                 mark_atom(c->car);
-                c = c->cdr;
             }
         }
         break;
-    case AtomType::Procedure:
-        cout << "marking a procedure" << endl;
-        a.procedure->visit();
+    case AtomType::Lambda:
+        if(!has_visited((char*)a.lambda))
+            a.lambda->visit();
         break;
     default:
         break;
@@ -66,55 +48,49 @@ void mark_atom(Atom a)
 
 void mark(std::shared_ptr<Env>& env)
 {
-  env->for_each([](const std::string& key, Atom value) {
+  env->for_each([](const std::string& key UNUSED, Atom value) {
                   mark_atom(value);
                 });
 }
 
 void Memory::sweep()
 {
-    auto h = head;
-    auto head = h;
-
-    for(;;) {
-        if(!h) {
-            break;
-        }
+    for( auto it = allocations.begin() ; it != allocations.end() ; ) {
+        auto h = *it;
         if(!h->used) {
-            auto t = h;
-            h = t->next;
-
-            if(t == head) {
-                head = h;
-            }
-
-            printf("freeing: %d@%p\n", t->type, t);
-            switch(t->type) {
+            switch(h->type) {
             case AtomType::String:
             {
-                auto a = (String*)t->buff;
+                auto a = (String*)h->buff;
                 assert(a);
                 a->~String();
             }
             break;
             case AtomType::Symbol:
             {
-                auto a = (Symbol*)t->buff;
+                auto a = (Symbol*)h->buff;
                 assert(a);
                 a->~Symbol();
             }
             break;
+            case AtomType::Lambda:
+            {
+                auto a = (Lambda*)h->buff;
+                assert(a);
+                a->~Lambda();
+                break;
+            }
             default:
                 break;
             }
-            assert(t);
-            free(t);
+            assert(h);
+            free(h);
+            it = allocations.erase(it);
         } else {
+            ++it;
             h->used = false;
-            h = h->next;
         }
     }
-    this->head = head;
 }
 
 void Memory::mark_and_sweep(std::shared_ptr<Env>& root)

@@ -14,7 +14,8 @@ enum class AtomType {
     String,
     Nil,
     Boolean,
-    Procedure
+    Lambda,
+    Primitive
 };
 
 struct Boolean {
@@ -64,7 +65,8 @@ struct Number {
 };
 
 struct Cons;
-class Procedure;
+class Lambda;
+class Primitive;
 
 struct Atom
 {
@@ -72,7 +74,8 @@ struct Atom
     Atom(int64_t i) : type(AtomType::Number), integer(i) {}
     Atom(Cons *cons) : type(AtomType::Cons), cons(cons) {}
     Atom(Boolean b) : type(AtomType::Boolean), boolean(b) {}
-    Atom(Procedure *p) : type(AtomType::Procedure), procedure(p) {}
+    Atom(Primitive *p) : type(AtomType::Primitive), primitive(p) {}
+    Atom(Lambda *p) : type(AtomType::Lambda), lambda(p) {}
     Atom(Symbol *s) : type(AtomType::Symbol), symbol(s) {}
     Atom(String *s) : type(AtomType::String), string(s) {}
 
@@ -83,7 +86,8 @@ struct Atom
         Symbol    *symbol;
         String    *string;
         Boolean    boolean;
-        Procedure *procedure;
+        Primitive *primitive;
+        Lambda    *lambda;
     };
 
     bool operator==(const Atom& other) const {
@@ -104,8 +108,10 @@ struct Atom
             return true;
         case AtomType::Boolean:
             return boolean == other.boolean;
-        case AtomType::Procedure:
-            return procedure == other.procedure;
+        case AtomType::Primitive:
+            return primitive == other.primitive;
+        case AtomType::Lambda:
+            return lambda == other.lambda;
         }
         return false;
     }

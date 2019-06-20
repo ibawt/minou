@@ -124,12 +124,14 @@ public:
         if(!a.is_list()) {
             return str("invalid argument");
         }
-        if(f.type != AtomType::Procedure) {
+        switch(f.type) {
+        case AtomType::Primitive:
+            return f.primitive->invoke(engine, a.cons, env, k);
+        case AtomType::Lambda:
+            return f.lambda->invoke(engine, a.cons, env, k);
+        default:
             return str("invalid type for apply: " + f.to_string());
         }
-
-        assert(f.procedure);
-        return f.procedure->invoke(engine, a.cons, env, k);
     }
 private:
     Atom f;

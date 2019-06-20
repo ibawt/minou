@@ -31,6 +31,10 @@ public:
         return f->second;
     }
 
+    void clear() {
+        map.clear();
+    }
+
     bool update(const Symbol& key, Atom value) {
       auto t = this;
 
