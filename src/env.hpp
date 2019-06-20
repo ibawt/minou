@@ -10,11 +10,14 @@
 #include "types.hpp"
 
 namespace minou {
+class Env;
+
+typedef Env* EnvPtr;
 
 class Env
 {
 public:
-    Env(std::shared_ptr<Env> p) : parent(p) {}
+    Env(EnvPtr p) : parent(p) {}
     Env() {
         default_env();
     }
@@ -33,6 +36,7 @@ public:
 
     void clear() {
         map.clear();
+        parent.reset();
     }
 
     bool update(const Symbol& key, Atom value) {
@@ -47,7 +51,7 @@ public:
         }
 
         if(parent.has_value()) {
-          t = parent.value().get();
+          t = parent.value();
         } else {
           return false;
         }
@@ -95,8 +99,9 @@ private:
     void default_env();
 
     std::map<const std::string, Atom> map;
-    std::optional<std::shared_ptr<Env>> parent;
+    std::optional<EnvPtr> parent;
 };
+
 
 
 }

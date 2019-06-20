@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <list>
 #include "types.hpp"
+#include "env.hpp"
 
 namespace minou {
 
@@ -23,7 +24,7 @@ template<> inline AtomType type(Lambda*) { return AtomType::Lambda; }
 template<> inline AtomType type(Primitive*) { return AtomType::Primitive; }
 
 void mark_atom(Atom);
-void mark(std::shared_ptr<Env>& env);
+void mark(EnvPtr env);
 
 typedef enum {
    USED   = 1,
@@ -91,7 +92,7 @@ public:
         return head;
     }
 
-    void mark_and_sweep(std::shared_ptr<Env>& root);
+    void mark_and_sweep(EnvPtr& root);
 
     template<typename T, typename... Args>
     T* alloc(Args&& ...args) {

@@ -12,13 +12,13 @@ using str = std::string;
 using std::cout;
 using std::endl;
 
-EvalResult eval_args(Engine *engine, Atom e, std::shared_ptr<Env>&, Continuation *k);
-EvalResult eval_begin(Engine *engine, Atom a, std::shared_ptr<Env>&, Continuation *k);
+EvalResult eval_args(Engine *engine, Atom e, EnvPtr, Continuation *k);
+EvalResult eval_begin(Engine *engine, Atom a, EnvPtr, Continuation *k);
 
 class SetCont : public Continuation
 {
 public:
-    SetCont(Continuation *k, Atom n, std::shared_ptr<Env> env) : n(n), env(env), k(k) {}
+    SetCont(Continuation *k, Atom n, EnvPtr env) : n(n), env(env), k(k) {}
 
     EvalResult resume(Engine *engine, Atom a) override {
         if(n.type != AtomType::Symbol) {
@@ -29,14 +29,14 @@ public:
     }
 private:
     Atom n;
-    std::shared_ptr<Env> env;
+    EnvPtr env;
     Continuation *k;
 };
 
 class DefineCont : public Continuation
 {
 public:
-    DefineCont(Continuation *k, Atom n, std::shared_ptr<Env> env) : n(n), env(env), k(k) {}
+    DefineCont(Continuation *k, Atom n, EnvPtr env) : n(n), env(env), k(k) {}
 
     EvalResult resume(Engine *engine, Atom a) override {
         if(n.type != AtomType::Symbol) {
@@ -47,14 +47,14 @@ public:
     }
 private:
     Atom n;
-    std::shared_ptr<Env> env;
+    EnvPtr env;
     Continuation *k;
 };
 
-EvalResult Lambda::invoke(Engine *engine, Cons *args, std::shared_ptr<Env>& env UNUSED, Continuation *k)
+EvalResult Lambda::invoke(Engine *engine, Cons *args, EnvPtr env UNUSED, Continuation *k)
 {
     cout << "making an env from: " << this->env << endl;
-    auto e = std::make_shared<Env>(this->env);
+    auto e = new Env(this->env);
     auto r = e->extend(variables, args);
 
     if(is_error(r)) {
@@ -66,7 +66,7 @@ EvalResult Lambda::invoke(Engine *engine, Cons *args, std::shared_ptr<Env>& env 
 class BeginCont : public Continuation
 {
 public:
-    BeginCont(Continuation *k, Atom e, std::shared_ptr<Env> env) :
+    BeginCont(Continuation *k, Atom e, EnvPtr env) :
         k(k), e(e), env(env) {}
 
     EvalResult resume(Engine *engine, Atom a UNUSED) override {
@@ -75,10 +75,10 @@ public:
 private:
     Continuation *k;
     Atom e;
-    std::shared_ptr<Env> env;
+    EnvPtr env;
 };
 
-EvalResult eval_begin(Engine *engine, Atom a, std::shared_ptr<Env>& env, Continuation *k)
+EvalResult eval_begin(Engine *engine, Atom a, EnvPtr env, Continuation *k)
 {
     if(!a.is_list()) {
         return str("invalid begin structure");
@@ -99,7 +99,7 @@ EvalResult eval_begin(Engine *engine, Atom a, std::shared_ptr<Env>& env, Continu
 class IfCont : public Continuation
 {
 public:
-    IfCont(Continuation *k, Atom t, Atom f, std::shared_ptr<Env> env) :
+    IfCont(Continuation *k, Atom t, Atom f, EnvPtr env) :
         true_value(t), false_value(f), k(k), env(env) {}
 
     EvalResult resume(Engine* engine, Atom a) override {
@@ -113,13 +113,13 @@ private:
     Atom true_value;
     Atom false_value;
     Continuation* k;
-    std::shared_ptr<Env> env;
+    EnvPtr env;
 };
 
 class ApplyCont : public Continuation
 {
 public:
-    ApplyCont(Continuation *k, Atom f, std::shared_ptr<Env> env) : f(f), env(env), k(k) {}
+    ApplyCont(Continuation *k, Atom f, EnvPtr env) : f(f), env(env), k(k) {}
 
     EvalResult resume(Engine *engine, Atom a) override {
         if(!a.is_list()) {
@@ -127,16 +127,18 @@ public:
         }
         switch(f.type) {
         case AtomType::Primitive:
+          assert(f.primitive);
             return f.primitive->invoke(engine, a.cons, env, k);
         case AtomType::Lambda:
-            return f.lambda->invoke(engine, a.cons, env, k);
+          assert(f.lambda);
+          return f.lambda->invoke(engine, a.cons, env, k);
         default:
             return str("invalid type for apply: " + f.to_string());
         }
     }
 private:
     Atom f;
-    std::shared_ptr<Env> env;
+    EnvPtr env;
     Continuation *k;
 };
 
@@ -158,7 +160,7 @@ private:
 class ArgumentCont : public Continuation
 {
 public:
-    ArgumentCont(Continuation *k, Atom e, std::shared_ptr<Env> env) : k(k), e(e), env(env) {}
+    ArgumentCont(Continuation *k, Atom e, EnvPtr env) : k(k), e(e), env(env) {}
 
     EvalResult resume(Engine *engine, Atom a) override {
         if(e.is_pair()) {
@@ -170,10 +172,10 @@ public:
 private:
     Continuation *k;
     Atom e;
-    std::shared_ptr<Env> env;
+    EnvPtr env;
 };
 
-EvalResult eval_args(Engine *engine, Atom e, std::shared_ptr<Env>& env, Continuation *k)
+EvalResult eval_args(Engine *engine, Atom e, EnvPtr env, Continuation *k)
 {
     if(! e.is_list()) {
         return str("must be a list");
@@ -189,7 +191,7 @@ EvalResult eval_args(Engine *engine, Atom e, std::shared_ptr<Env>& env, Continua
 class EvFunCont : public Continuation
 {
 public:
-    EvFunCont(Continuation *k, Atom e, std::shared_ptr<Env> env) : e(e), env(env), k(k) {}
+    EvFunCont(Continuation *k, Atom e, EnvPtr env) : e(e), env(env), k(k) {}
 
     EvalResult resume(Engine* engine, Atom a) override {
         ApplyCont ac(k, a, env);
@@ -198,7 +200,7 @@ public:
 
 private:
     Atom e;
-    std::shared_ptr<Env> env;
+    EnvPtr env;
     Continuation *k;
 };
 
@@ -239,14 +241,14 @@ Atom cadddr(Cons *cons) {
     return cons->cdr->cdr->cdr->car;
 }
 
-EvalResult eval_application(Engine* engine, Atom e, Atom ee, std::shared_ptr<Env> env, Continuation *k)
+EvalResult eval_application(Engine* engine, Atom e, Atom ee, EnvPtr env, Continuation *k)
 {
     // cout << "eval_applicaton: e:" << e << " ee: " << ee << endl;
     EvFunCont cont(k, ee, env);
     return eval(engine, e, env, &cont);
 }
 
-EvalResult eval_variable(Engine* engine, const Symbol& s, std::shared_ptr<Env>& env, Continuation *k)
+EvalResult eval_variable(Engine* engine, const Symbol& s, EnvPtr& env, Continuation *k)
 {
     auto v = env->lookup(s);
     if (v.has_value()) {
@@ -255,12 +257,12 @@ EvalResult eval_variable(Engine* engine, const Symbol& s, std::shared_ptr<Env>& 
     return str("not found!");
 }
 
-EvalResult eval(Engine *engine, Atom a, std::shared_ptr<Env>& env, Continuation* k)
+Result<Atom> eval(Engine *engine, Atom a, EnvPtr env, Continuation* k)
 {
     switch(a.type) {
     case AtomType::Cons:
         if(!a.cons) {
-            return std::string("invalid list application");
+            return "invalid list application";
         }
 
         if(a.cons->car.type == AtomType::Symbol) {

@@ -45,7 +45,7 @@ void mark_atom(Atom a)
     }
 }
 
-void mark(std::shared_ptr<Env>& env)
+void mark(EnvPtr env)
 {
   env->for_each([](const std::string& key UNUSED, Atom value) {
                   mark_atom(value);
@@ -71,7 +71,7 @@ void Memory::sweep()
                 assert(a);
                 a->~Symbol();
             }
-            break; 
+            break;
             case AtomType::Lambda:
             {
                 auto a = (Lambda*)h->buff;
@@ -92,7 +92,7 @@ void Memory::sweep()
     }
 }
 
-void Memory::mark_and_sweep(std::shared_ptr<Env>& root)
+void Memory::mark_and_sweep(EnvPtr& root)
 {
     assert(root);
     mark(root);

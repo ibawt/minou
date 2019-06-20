@@ -11,6 +11,7 @@
 #include "types.hpp"
 #include "base.hpp"
 #include "memory.hpp"
+#include "env.hpp"
 
 namespace minou {
 
@@ -43,17 +44,20 @@ class Env;
 class Procedure {
 public:
     virtual ~Procedure() {}
-    virtual EvalResult invoke(Engine*, Cons* args, std::shared_ptr<Env>& env, Continuation *k) = 0;
+    virtual EvalResult invoke(Engine*, Cons* args, EnvPtr env, Continuation *k) = 0;
     virtual void visit() {}
 };
 
 class Lambda : public Procedure
 {
 public:
-    Lambda(Cons *variables, Cons* body, std::shared_ptr<Env> env) :
+    Lambda(Cons *variables, Cons* body, EnvPtr env) :
         variables(variables), body(body), env(env) {}
 
-    EvalResult invoke(Engine* ,Cons *args, std::shared_ptr<Env>& env, Continuation *k) override;
+  ~Lambda() {
+    delete env;
+  }
+    EvalResult invoke(Engine* ,Cons *args, EnvPtr env, Continuation *k) override;
 
     void visit() override {
         minou::visit((char*)this);
@@ -64,23 +68,23 @@ public:
 private:
     Cons *variables;
     Cons *body;
-    std::shared_ptr<Env> env;
+    EnvPtr env;
 };
 
-using Applicative = EvalResult(Engine *, Cons *args, std::shared_ptr<Env>& env, Continuation *k);
+using Applicative = EvalResult(Engine *, Cons *args, EnvPtr& env, Continuation *k);
 
 class Primitive : public Procedure
 {
 public:
     Primitive(std::function<Applicative> x) : op(x) {}
-    EvalResult invoke(Engine* eng, Cons *args, std::shared_ptr<Env>& env, Continuation *k) override {
+    EvalResult invoke(Engine* eng, Cons *args, EnvPtr env, Continuation *k) override {
         return op(eng, args, env, k);
     }
 private:
     std::function<Applicative> op;
 };
 
-EvalResult eval(Engine*, Atom a, std::shared_ptr<Env>&, Continuation*);
+EvalResult eval(Engine*, Atom a, EnvPtr, Continuation*);
 }
 
 

@@ -7,7 +7,7 @@
 
 namespace minou {
 
-static EvalResult add(Engine *engine, Cons *args, std::shared_ptr<Env>& env, Continuation *k) {
+static EvalResult add(Engine *engine, Cons *args, EnvPtr env, Continuation *k) {
     assert(env);
     assert(k);
 
@@ -21,7 +21,7 @@ static EvalResult add(Engine *engine, Cons *args, std::shared_ptr<Env>& env, Con
 
     return k->resume(engine, sum);
 }
-static EvalResult subtraction(Engine* engine, Cons *args, std::shared_ptr<Env> env, Continuation *k)
+static EvalResult subtraction(Engine* engine, Cons *args, EnvPtr env, Continuation *k)
 {
     assert(env);
     assert(k);
