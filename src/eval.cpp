@@ -53,14 +53,15 @@ private:
 
 EvalResult Lambda::invoke(Engine *engine, Cons *args, EnvPtr env UNUSED, Continuation *k)
 {
-    cout << "making an env from: " << this->env << endl;
-    auto e = new Env(this->env);
-    auto r = e->extend(variables, args);
+    Env e(this->env);
+    auto r = e.extend(variables, args);
 
     if(is_error(r)) {
         return get_error(r).get_message();
     }
-    return eval_begin(engine, body, e, k);
+
+    auto result = eval_begin(engine, body, &e, k);
+    return result;
 }
 
 class BeginCont : public Continuation

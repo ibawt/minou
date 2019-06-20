@@ -68,7 +68,7 @@ public:
         map[key.string] = value;
     }
 
-    Result<bool> extend(Cons *args, Cons* vars) {
+    Result<std::monostate> extend(Cons *args, Cons* vars) {
         for(;;) {
             if ((args && !vars) ||  (!args && vars)) {
                 return "wrong arity";
@@ -93,7 +93,7 @@ public:
             args = args->cdr;
             vars = vars->cdr;
         }
-        return true;
+        return {};
     }
 private:
     void default_env();
