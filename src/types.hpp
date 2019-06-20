@@ -1,9 +1,9 @@
 #ifndef TYPES_H_
 #define TYPES_H_
 
+#include <functional>
 #include <string>
 #include <variant>
-#include <functional>
 
 namespace minou {
 
@@ -19,35 +19,31 @@ enum class AtomType {
 };
 
 struct Boolean {
-  Boolean(bool b) : b(b) {}
-  bool b;
+    Boolean(bool b) : b(b) {}
+    bool b;
 
-  bool operator()() const {
-    return b;
-  }
+    bool operator()() const { return b; }
 
-  bool operator==(const Boolean& other) const {
-    return b == other.b;
-  }
+    bool operator==(const Boolean &other) const { return b == other.b; }
 };
 
 using String = std::string;
 
 class Symbol {
-public:
+  public:
     Symbol(const char *s) : string(s) {}
-    Symbol(const std::string& s): string(s) {}
+    Symbol(const std::string &s) : string(s) {}
 
-    bool operator==(const Symbol& other) const {
+    bool operator==(const Symbol &other) const {
         return this->string == other.string;
     }
-    bool operator<(const Symbol& other) const {
+    bool operator<(const Symbol &other) const {
         return this->string < other.string;
     }
     std::string string;
 };
 
-inline std::ostream& operator<<(std::ostream&os, const Symbol& a) {
+inline std::ostream &operator<<(std::ostream &os, const Symbol &a) {
     os << a.string;
     return os;
 }
@@ -56,20 +52,17 @@ struct Number {
     Number(int64_t i) : value(i) {}
     union {
         int64_t value;
-        double  real;
+        double real;
     };
 
-    bool operator==(const Number& n) const {
-        return value == n.value;
-    }
+    bool operator==(const Number &n) const { return value == n.value; }
 };
 
 struct Cons;
 class Lambda;
 class Primitive;
 
-struct Atom
-{
+struct Atom {
     Atom() : type(AtomType::Nil), cons(nullptr) {}
     Atom(int64_t i) : type(AtomType::Number), integer(i) {}
     Atom(Cons *cons) : type(AtomType::Cons), cons(cons) {}
@@ -81,21 +74,21 @@ struct Atom
 
     AtomType type;
     union {
-        Number     integer;
-        Cons      *cons;
-        Symbol    *symbol;
-        String    *string;
-        Boolean    boolean;
+        Number integer;
+        Cons *cons;
+        Symbol *symbol;
+        String *string;
+        Boolean boolean;
         Primitive *primitive;
-        Lambda    *lambda;
+        Lambda *lambda;
     };
 
-    bool operator==(const Atom& other) const {
-        if( type != other.type) {
+    bool operator==(const Atom &other) const {
+        if (type != other.type) {
             return false;
         }
 
-        switch(type) {
+        switch (type) {
         case AtomType::Number:
             return integer == other.integer;
         case AtomType::Cons:
@@ -117,27 +110,22 @@ struct Atom
     }
     std::string to_string() const;
 
-    bool is_list() const {
-        return type == AtomType::Cons;
-    }
+    bool is_list() const { return type == AtomType::Cons; }
 
-    bool is_pair() const {
-        return type == AtomType::Cons && cons;
-    }
-
+    bool is_pair() const { return type == AtomType::Cons && cons; }
 };
 
-std::ostream& operator<<(std::ostream&os, const Atom& a);
+std::ostream &operator<<(std::ostream &os, const Atom &a);
 
 struct Cons {
     Cons(Atom car, Cons *cdr = nullptr) : car(car), cdr(cdr) {}
-    Atom  car;
+    Atom car;
     Cons *cdr;
 
-    void for_each(std::function<void(Cons*)> f) {
+    void for_each(std::function<void(Cons *)> f) {
         Cons *c = cdr;
-        for(;;) {
-            if(!c)
+        for (;;) {
+            if (!c)
                 return;
             f(c);
             c = c->cdr;
@@ -145,10 +133,8 @@ struct Cons {
     }
 };
 
+bool equalsp(const Atom &a, const Atom &b);
 
-bool equalsp(const Atom& a, const Atom& b);
-
-
-}
+} // namespace minou
 
 #endif

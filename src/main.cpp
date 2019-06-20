@@ -1,25 +1,23 @@
-#include <readline/readline.h>
 #include <iostream>
-
+#include <readline/readline.h>
 
 #include "base.hpp"
+#include "eval.hpp"
 #include "main.hpp"
 #include "minou.hpp"
 #include "parser.hpp"
-#include "eval.hpp"
 
 using namespace minou;
 using std::cout;
 using std::endl;
 
-int main()
-{
+int main() {
     Engine engine;
 
-    for(;;) {
+    for (;;) {
         auto line = readline(">");
 
-        if(!line) {
+        if (!line) {
             break;
         }
 
@@ -28,7 +26,7 @@ int main()
         if (!is_error(result)) {
             cout << get_value(result).to_string() << endl;
         } else {
-            cout << "ERR: " <<  get_error(result) << endl;
+            cout << "ERR: " << get_error(result) << endl;
         }
 
         free(line);

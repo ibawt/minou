@@ -1,9 +1,8 @@
 #include <cassert>
 
 #include "env.hpp"
-#include "types.hpp"
 #include "eval.hpp"
-
+#include "types.hpp"
 
 namespace minou {
 
@@ -12,8 +11,8 @@ static EvalResult add(Engine *engine, Cons *args, EnvPtr env, Continuation *k) {
     assert(k);
 
     int64_t sum = 0;
-    for(;args; args = args->cdr) {
-        if( args->car.type != AtomType::Number) {
+    for (; args; args = args->cdr) {
+        if (args->car.type != AtomType::Number) {
             return std::string("invalid type for add");
         }
         sum += args->car.integer.value;
@@ -21,28 +20,28 @@ static EvalResult add(Engine *engine, Cons *args, EnvPtr env, Continuation *k) {
 
     return k->resume(engine, sum);
 }
-static EvalResult subtraction(Engine* engine, Cons *args, EnvPtr env, Continuation *k)
-{
+static EvalResult subtraction(Engine *engine, Cons *args, EnvPtr env,
+                              Continuation *k) {
     assert(env);
     assert(k);
 
-    if(!args) {
+    if (!args) {
         return std::string("invalid arity");
     }
 
-    if( args->car.type  != AtomType::Number) {
+    if (args->car.type != AtomType::Number) {
         return std::string("invalid type");
     }
 
     int64_t i = args->car.integer.value;
 
-    if( !args->cdr ) {
+    if (!args->cdr) {
         return -i;
     }
     args = args->cdr;
 
-    for (; args ; args = args->cdr) {
-        if(args->car.type != AtomType::Number) {
+    for (; args; args = args->cdr) {
+        if (args->car.type != AtomType::Number) {
             return std::string("invalid type");
         }
         i -= args->car.integer.value;
@@ -50,16 +49,15 @@ static EvalResult subtraction(Engine* engine, Cons *args, EnvPtr env, Continuati
     return k->resume(engine, i);
 }
 
-static std::map<std::string, Primitive> primitives =
-  { { "+", Primitive(add) },
-    { "-", Primitive(subtraction)},
-  };
+static std::map<std::string, Primitive> primitives = {
+    {"+", Primitive(add)},
+    {"-", Primitive(subtraction)},
+};
 
-void Env::default_env()
-{
-  for(auto& [name, prim] : primitives) {
-    set(name, &prim);
-  }
+void Env::default_env() {
+    for (auto &[name, prim] : primitives) {
+        set(name, &prim);
+    }
 }
 
-}
+} // namespace minou

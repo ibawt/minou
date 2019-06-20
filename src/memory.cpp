@@ -1,43 +1,40 @@
 #include "memory.hpp"
-#include "eval.hpp"
 #include "env.hpp"
-#include <string>
-#include <iostream>
+#include "eval.hpp"
 #include <cstdlib>
-#include <cstdio>
+#include <iostream>
+#include <string>
 
 namespace minou {
 
 using std::cout;
 using std::endl;
 
-void Memory::free_all()
-{
-    for( auto h : allocations) {
+void Memory::free_all() {
+    for (auto h : allocations) {
         free(h);
     }
     allocations.clear();
 }
 
-void mark_atom(Atom a)
-{
-    switch(a.type) {
+void mark_atom(Atom a) {
+    switch (a.type) {
     case AtomType::String:
-        visit((char*)a.string);
+        visit((char *)a.string);
         break;
     case AtomType::Symbol:
         visit((char *)a.symbol);
         break;
     case AtomType::Cons:
-        for(auto c = a.cons; c ; c = c->cdr) {
-            if(!has_visited((char *)c)) {
-                visit((char*)c);
+        for (auto c = a.cons; c; c = c->cdr) {
+            if (!has_visited((char *)c)) {
+                visit((char *)c);
                 mark_atom(c->car);
             }
         }
         break;
     case AtomType::Lambda:
-        if(!has_visited((char*)a.lambda))
+        if (!has_visited((char *)a.lambda))
             a.lambda->visit();
         break;
     default:
@@ -45,36 +42,28 @@ void mark_atom(Atom a)
     }
 }
 
-void mark(EnvPtr env)
-{
-  env->for_each([](const std::string& key UNUSED, Atom value) {
-                  mark_atom(value);
-                });
+void mark(EnvPtr env) {
+    env->for_each(
+        [](const std::string &key UNUSED, Atom value) { mark_atom(value); });
 }
 
-void Memory::sweep()
-{
-    for( auto it = allocations.begin() ; it != allocations.end() ; ) {
+void Memory::sweep() {
+    for (auto it = allocations.begin(); it != allocations.end();) {
         auto h = *it;
-        if( (h->used & (LOCKED|USED)) == USED ) {
-            switch(h->type) {
-            case AtomType::String:
-            {
-                auto a = (String*)h->buff;
+        if ((h->used & (LOCKED | USED)) == USED) {
+            switch (h->type) {
+            case AtomType::String: {
+                auto a = (String *)h->buff;
                 assert(a);
                 a->~String();
-            }
-            break;
-            case AtomType::Symbol:
-            {
-                auto a = (Symbol*)h->buff;
+            } break;
+            case AtomType::Symbol: {
+                auto a = (Symbol *)h->buff;
                 assert(a);
                 a->~Symbol();
-            }
-            break;
-            case AtomType::Lambda:
-            {
-                auto a = (Lambda*)h->buff;
+            } break;
+            case AtomType::Lambda: {
+                auto a = (Lambda *)h->buff;
                 assert(a);
                 a->~Lambda();
                 break;
@@ -92,13 +81,10 @@ void Memory::sweep()
     }
 }
 
-void Memory::mark_and_sweep(EnvPtr root)
-{
+void Memory::mark_and_sweep(EnvPtr root) {
     assert(root);
     mark(root);
     sweep();
 }
 
-
-}
-
+} // namespace minou

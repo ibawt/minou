@@ -4,16 +4,15 @@
 #include <stdexcept>
 #include <variant>
 
-#include "minou.hpp"
 #include "memory.hpp"
+#include "minou.hpp"
 
 namespace minou {
 
 using ParseResult = Result<Atom>;
 
-ParseResult parse(Memory&, const std::string_view&);
+ParseResult parse(Memory &, const std::string_view &);
 
-
-}
+} // namespace minou
 
 #endif

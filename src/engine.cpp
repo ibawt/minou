@@ -1,11 +1,11 @@
 #include "engine.hpp"
-#include "parser.hpp"
 #include "eval.hpp"
+#include "parser.hpp"
+#include <string>
 
 namespace minou {
 
-EvalResult Engine::eval(const std::string_view& s)
-{
+EvalResult Engine::eval(const std::string_view &s) {
     memory.mark_and_sweep(&global);
 
     auto atom = parse(memory, s);
@@ -16,7 +16,7 @@ EvalResult Engine::eval(const std::string_view& s)
 
     BottomCont cont;
 
-    return minou::eval(this, get_atom(atom), &global, &cont); 
+    return minou::eval(this, get_atom(atom), &global, &cont);
 }
 
-}
+} // namespace minou
