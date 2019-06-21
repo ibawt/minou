@@ -19,6 +19,17 @@ enum class AtomType {
     Continuation
 };
 
+constexpr inline bool is_heap_type(const AtomType a) {
+    switch (a) {
+    case AtomType::Number:
+    case AtomType::Nil:
+    case AtomType::Boolean:
+        return false;
+    default:
+        return true;
+    }
+}
+
 struct Boolean {
     Boolean(bool b) : b(b) {}
     bool b;

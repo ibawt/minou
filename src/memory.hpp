@@ -10,6 +10,7 @@
 #include <stddef.h>
 #include <string.h>
 #include <vector>
+#include <string>
 
 namespace minou {
 
@@ -17,10 +18,19 @@ class Lambda;
 class Env;
 
 template <typename T> AtomType type(T);
-template <> inline AtomType type(String *) { return AtomType::String; }
-template <> inline AtomType type(Symbol *) { return AtomType::Symbol; }
-template <> inline AtomType type(Cons *) { return AtomType::Cons; }
-template <> inline AtomType type(Lambda *) { return AtomType::Lambda; }
+template <> constexpr inline AtomType type(String *) {
+    return AtomType::String;
+}
+template <> constexpr inline AtomType type(Symbol *) {
+    return AtomType::Symbol;
+}
+template <> constexpr inline AtomType type(Cons *) { return AtomType::Cons; }
+template <> constexpr inline AtomType type(Lambda *) {
+    return AtomType::Lambda;
+}
+template <> constexpr inline AtomType type(Continuation *k) {
+    return AtomType::Continuation;
+}
 
 void mark_atom(Atom);
 void mark(EnvPtr env);
@@ -88,11 +98,9 @@ class Memory {
         memset(block, 0, sizeof(HeapNode) + len);
         auto hn = new (block) HeapNode(len);
         allocations.push_front(hn);
-
         auto t = new ((char *)block + offsetof(HeapNode, buff))
             T(std::forward<Args>(args)...);
-        hn->type = type(t);
-        assert((int)hn->type != 0);
+
         return t;
     }
 

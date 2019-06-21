@@ -186,8 +186,9 @@ EvalResult eval_args(Engine *engine, Atom e, EnvPtr env, Continuation *k) {
         // empty list
         return k->resume(engine, e);
     }
-    ArgumentCont ac(k, e, env);
-    return eval(engine, e.cons->car, env, &ac);
+    auto ac = engine->get_memory().alloc<ArgumentCont>(k, e, env);
+    // ArgumentCont ac(k, e, env);
+    return eval(engine, e.cons->car, env, ac);
 }
 
 class EvFunCont : public Continuation {
