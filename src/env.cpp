@@ -51,22 +51,13 @@ static EvalResult subtraction(Engine *engine, Cons *args, EnvPtr env,
     return k->resume(engine, i);
 }
 
-bool has_only_n(Cons *c, int n) {
-    int i = 0;
-    for (; c; c = c->cdr) {
-        if (i > n) {
-            return false;
-        }
-    }
-    return i == n;
-}
 static Result<Atom> call_cc(Engine *engine, Cons *args, Env *env,
                             Continuation *k) {
     if (args->car.type != AtomType::Lambda) {
         return "invalid type";
     }
     if (!has_only_n(args, 1)) {
-        return "invalid arity";
+        return "call/cc invalid arity";
     }
 
     auto x = engine->get_memory().alloc<Cons>(k, nullptr);

@@ -23,6 +23,14 @@ class Continuation {
   public:
     virtual ~Continuation() {}
     virtual EvalResult resume(Engine *, Atom) = 0;
+
+    Result<Atom> invoke(Engine *engine, Cons *args, Env *env, Continuation *k) {
+        if (!has_only_n(args, 1)) {
+            return "invalid arity";
+        }
+
+        return k->resume(engine, args->car);
+    }
 };
 
 class BottomCont : public Continuation {

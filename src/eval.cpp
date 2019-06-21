@@ -130,6 +130,9 @@ class ApplyCont : public Continuation {
         case AtomType::Lambda:
             assert(f.lambda);
             return f.lambda->invoke(engine, a.cons, env, k);
+        case AtomType::Continuation:
+            assert(f.continuation);
+            return f.continuation->invoke(engine, a.cons, env, k);
         default:
             return str("invalid type for apply: " + f.to_string());
         }
@@ -210,161 +213,165 @@ class Catch : public Continuation {
   public:
     Catch(Continuation *k, Atom body, Env *env) : k(k), body(body), env(env) {}
 
-    Result<Atom> resume(Engine *engine, Atom a) override {}
+    Result<Atom> resume(Engine *engine, Atom a) override {
+        return "not implemented";
+    }
 };
 
 class LabeledCont : public Continuation {
-    Continuation *k
+    Continuation *k;
+};
 
-        class Unwind {
-      public:
-        virtual Result<Atom> unwind(Engine *engine, Continuation *k, Atom a,
-                                    Env *env) = 0;
-    };
+class Unwind {
+  public:
+    virtual Result<Atom> unwind(Engine *engine, Continuation *k, Atom a,
+                                Env *env) = 0;
+};
 
-    class BlockCont : public Continuation {
-        Continuation *k;
-        Atom label;
+class BlockCont : public Continuation {
+    Continuation *k;
+    Atom label;
 
-      public:
-        BlockCont(Continuation *k, Atom label) : k(k), label(label) {}
+  public:
+    BlockCont(Continuation *k, Atom label) : k(k), label(label) {}
 
-        Result<Atom> resume(Engine *engine, Atom a) override {}
-    };
-
-    class ProtectReturn : public Continuation {
-        Continuation *k;
-        Atom value;
-
-      public:
-        ProtectReturn(Continuation *k, Atom a) : k(k), value(a) {}
-
-        Result<Atom> resume(Engine *engine, Atom a) override {
-            return k->resume(engine, value);
-        }
-    };
-
-    class UnwindProtect : public Continuation {
-        Continuation *k;
-        Atom cleanup;
-        Env *env;
-
-      public:
-        UnwindProtect(Continuation *k, Atom cleanup, Env *env)
-            : k(k), cleanup(cleanup), env(env) {}
-
-        Result<Atom> resume(Engine *engine, Atom a) override {
-            ProtectReturn pr(k, a);
-
-            return eval_begin(engine, cleanup, env, &pr);
-        }
-    };
-
-    EvalResult eval_quote(Engine *engine, Atom a, Continuation *k) {
-        return k->resume(engine, a);
+    Result<Atom> resume(Engine *engine, Atom a) override {
+        return "unimplemented";
     }
+};
 
-    bool has_at_least_n(Cons *cons, int desired) {
-        for (int i = 0;; ++i) {
-            if (!cons) {
-                return i >= desired;
+class ProtectReturn : public Continuation {
+    Continuation *k;
+    Atom value;
+
+  public:
+    ProtectReturn(Continuation *k, Atom a) : k(k), value(a) {}
+
+    Result<Atom> resume(Engine *engine, Atom a) override {
+        return k->resume(engine, value);
+    }
+};
+
+class UnwindProtect : public Continuation {
+    Continuation *k;
+    Atom cleanup;
+    Env *env;
+
+  public:
+    UnwindProtect(Continuation *k, Atom cleanup, Env *env)
+        : k(k), cleanup(cleanup), env(env) {}
+
+    Result<Atom> resume(Engine *engine, Atom a) override {
+        ProtectReturn pr(k, a);
+
+        return eval_begin(engine, cleanup, env, &pr);
+    }
+};
+
+EvalResult eval_quote(Engine *engine, Atom a, Continuation *k) {
+    return k->resume(engine, a);
+}
+
+bool has_at_least_n(Cons *cons, int desired) {
+    for (int i = 0;; ++i) {
+        if (!cons) {
+            return i >= desired;
+        }
+        if (i >= desired) {
+            return true;
+        }
+        cons = cons->cdr;
+        ++i;
+    }
+}
+
+Atom car(Cons *cons) { return cons->car; }
+
+Atom cadr(Cons *cons) { return cons->cdr->car; }
+
+Atom caddr(Cons *cons) { return cons->cdr->cdr->car; }
+
+Atom cadddr(Cons *cons) { return cons->cdr->cdr->cdr->car; }
+
+EvalResult eval_application(Engine *engine, Atom e, Atom ee, EnvPtr env,
+                            Continuation *k) {
+    EvFunCont cont(k, ee, env);
+    return eval(engine, e, env, &cont);
+}
+
+EvalResult eval_variable(Engine *engine, const Symbol &s, EnvPtr &env,
+                         Continuation *k) {
+    auto v = env->lookup(s);
+    if (v.has_value()) {
+        return k->resume(engine, v.value());
+    }
+    return str("not found!");
+}
+
+Result<Atom> eval(Engine *engine, Atom a, EnvPtr env, Continuation *k) {
+    switch (a.type) {
+    case AtomType::Cons:
+        if (!a.cons) {
+            return "invalid list application";
+        }
+
+        if (a.cons->car.type == AtomType::Symbol) {
+
+            assert(a.cons->car.symbol);
+            const auto &sym = *a.cons->car.symbol;
+
+            // IF
+            if (sym == "if") {
+                if (!has_at_least_n(a.cons, 3)) {
+                    return std::string("invalid list structure for if");
+                }
+                IfCont ifCont(k, caddr(a.cons), cadddr(a.cons), env);
+                return eval(engine, a.cons->cdr->car, env, &ifCont);
+            } else if (sym == "define") {
+                DefineCont sc(k, a.cons->cdr->car, env);
+                return eval(engine, a.cons->cdr->cdr->car, env, &sc);
+            } else if (sym == "set!") {
+                SetCont sc(k, a.cons->cdr->car, env);
+
+                return eval(engine, a.cons->cdr->cdr->car, env, &sc);
             }
-            if (i >= desired) {
-                return true;
+            // QUOTE
+            else if (sym == "quote") {
+                if (!a.cons->cdr) {
+                    return std::string("invalid quote call");
+                }
+                return eval_quote(engine, a.cons->cdr->car, k);
             }
-            cons = cons->cdr;
-            ++i;
-        }
-    }
-
-    Atom car(Cons *cons) { return cons->car; }
-
-    Atom cadr(Cons *cons) { return cons->cdr->car; }
-
-    Atom caddr(Cons *cons) { return cons->cdr->cdr->car; }
-
-    Atom cadddr(Cons *cons) { return cons->cdr->cdr->cdr->car; }
-
-    EvalResult eval_application(Engine *engine, Atom e, Atom ee, EnvPtr env,
-                                Continuation *k) {
-        EvFunCont cont(k, ee, env);
-        return eval(engine, e, env, &cont);
-    }
-
-    EvalResult eval_variable(Engine *engine, const Symbol &s, EnvPtr &env,
-                             Continuation *k) {
-        auto v = env->lookup(s);
-        if (v.has_value()) {
-            return k->resume(engine, v.value());
-        }
-        return str("not found!");
-    }
-
-    Result<Atom> eval(Engine *engine, Atom a, EnvPtr env, Continuation *k) {
-        switch (a.type) {
-        case AtomType::Cons:
-            if (!a.cons) {
-                return "invalid list application";
+            // BEGIN
+            else if (sym == "begin") {
+                return eval_begin(engine, a.cons->cdr, env, k);
             }
-
-            if (a.cons->car.type == AtomType::Symbol) {
-
-                assert(a.cons->car.symbol);
-                const auto &sym = *a.cons->car.symbol;
-
-                // IF
-                if (sym == "if") {
-                    if (!has_at_least_n(a.cons, 3)) {
-                        return std::string("invalid list structure for if");
-                    }
-                    IfCont ifCont(k, caddr(a.cons), cadddr(a.cons), env);
-                    return eval(engine, a.cons->cdr->car, env, &ifCont);
-                } else if (sym == "define") {
-                    DefineCont sc(k, a.cons->cdr->car, env);
-                    return eval(engine, a.cons->cdr->cdr->car, env, &sc);
-                } else if (sym == "set!") {
-                    SetCont sc(k, a.cons->cdr->car, env);
-
-                    return eval(engine, a.cons->cdr->cdr->car, env, &sc);
+            // LAMBDA
+            else if (sym == "lambda") {
+                if (!has_at_least_n(a.cons, 3)) {
+                    return std::string("invalid arity");
                 }
-                // QUOTE
-                else if (sym == "quote") {
-                    if (!a.cons->cdr) {
-                        return std::string("invalid quote call");
-                    }
-                    return eval_quote(engine, a.cons->cdr->car, k);
-                }
-                // BEGIN
-                else if (sym == "begin") {
-                    return eval_begin(engine, a.cons->cdr, env, k);
-                }
-                // LAMBDA
-                else if (sym == "lambda") {
-                    if (!has_at_least_n(a.cons, 3)) {
-                        return std::string("invalid arity");
-                    }
-                    auto l = engine->get_memory().alloc<Lambda>(
-                        a.cons->cdr->car.cons, a.cons->cdr->cdr, env);
-                    return k->resume(engine, l);
-                }
-                // EVAL
-                else {
-                    return eval_application(engine, a.cons->car, a.cons->cdr,
-                                            env, k);
-                }
-            } else {
+                auto l = engine->get_memory().alloc<Lambda>(
+                    a.cons->cdr->car.cons, a.cons->cdr->cdr, env);
+                return k->resume(engine, l);
+            }
+            // EVAL
+            else {
                 return eval_application(engine, a.cons->car, a.cons->cdr, env,
                                         k);
             }
-            break;
-        case AtomType::Symbol:
-            return eval_variable(engine, *a.symbol, env, k);
-            break;
-        default:
-            return eval_quote(engine, a, k);
+        } else {
+            return eval_application(engine, a.cons->car, a.cons->cdr, env, k);
         }
-
-        return std::string("shouldn't get here");
+        break;
+    case AtomType::Symbol:
+        return eval_variable(engine, *a.symbol, env, k);
+        break;
+    default:
+        return eval_quote(engine, a, k);
     }
+
+    return std::string("shouldn't get here");
+}
 
 } // namespace minou

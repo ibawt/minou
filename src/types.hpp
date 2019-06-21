@@ -141,6 +141,15 @@ struct Cons {
 
 bool equalsp(const Atom &a, const Atom &b);
 
+inline bool has_only_n(const Cons *c, const int n) {
+    int i = 0;
+    for (; c; c = c->cdr, ++i) {
+        if (i > n) {
+            return false;
+        }
+    }
+    return i == n;
+}
 } // namespace minou
 
 #endif
