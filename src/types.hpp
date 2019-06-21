@@ -15,7 +15,8 @@ enum class AtomType {
     Nil,
     Boolean,
     Lambda,
-    Primitive
+    Primitive,
+    Continuation
 };
 
 struct Boolean {
@@ -61,6 +62,7 @@ struct Number {
 struct Cons;
 class Lambda;
 class Primitive;
+class Continuation;
 
 struct Atom {
     Atom() : type(AtomType::Nil), cons(nullptr) {}
@@ -71,16 +73,18 @@ struct Atom {
     Atom(Lambda *p) : type(AtomType::Lambda), lambda(p) {}
     Atom(Symbol *s) : type(AtomType::Symbol), symbol(s) {}
     Atom(String *s) : type(AtomType::String), string(s) {}
+    Atom(Continuation *c) : type(AtomType::Continuation), continuation(c) {}
 
     AtomType type;
     union {
         Number integer;
+        Boolean boolean;
         Cons *cons;
         Symbol *symbol;
         String *string;
-        Boolean boolean;
         Primitive *primitive;
         Lambda *lambda;
+        Continuation *continuation;
     };
 
     bool operator==(const Atom &other) const {
@@ -105,6 +109,8 @@ struct Atom {
             return primitive == other.primitive;
         case AtomType::Lambda:
             return lambda == other.lambda;
+        case AtomType::Continuation:
+            return continuation == other.continuation;
         }
         return false;
     }
