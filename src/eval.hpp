@@ -2,8 +2,6 @@
 #define EVAL_H_
 
 #include <functional>
-#include <iostream>
-#include <map>
 #include <memory>
 #include <optional>
 #include <variant>
@@ -51,12 +49,10 @@ class Lambda : public Procedure {
                       Continuation *k) override;
 
     void visit() override {
-        if (!has_visited((const char *)this)) {
-            minou::visit((char *)this);
-            mark_atom(variables);
-            mark_atom(body);
-            mark(env);
-        }
+        minou::visit((char *)this);
+        mark_atom(variables);
+        mark_atom(body);
+        mark(env);
     }
 
   private:

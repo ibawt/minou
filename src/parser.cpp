@@ -1,4 +1,7 @@
 #include "parser.hpp"
+#include <cstdlib>
+#include <string>
+#include <vector>
 
 namespace minou {
 
@@ -191,9 +194,9 @@ struct Parser {
         if (v == "nil") {
             return make_nil();
         } else if (v == "#t") {
-            return Atom(true);
+            return Atom(Boolean(true));
         } else if (v == "#f") {
-            return Atom(false);
+            return Atom(Boolean(false));
         }
 
         if (v.size() == 0) {

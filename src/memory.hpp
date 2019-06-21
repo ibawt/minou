@@ -3,7 +3,8 @@
 
 #include "env.hpp"
 #include "types.hpp"
-#include <cassert>
+#include <assert.h>
+#include <cstring>
 #include <list>
 #include <memory>
 #include <stddef.h>
@@ -20,22 +21,20 @@ template <> inline AtomType type(String *) { return AtomType::String; }
 template <> inline AtomType type(Symbol *) { return AtomType::Symbol; }
 template <> inline AtomType type(Cons *) { return AtomType::Cons; }
 template <> inline AtomType type(Lambda *) { return AtomType::Lambda; }
-template <> inline AtomType type(Primitive *) { return AtomType::Primitive; }
 
 void mark_atom(Atom);
 void mark(EnvPtr env);
 
-typedef enum {
+enum {
     USED = 1,
     LOCKED = 2,
-} object_flags;
+};
 
 struct HeapNode {
     HeapNode(int size) : size(size) {}
     AtomType type;
     int size;
     int used = 0;
-    // HeapNode *next;
     char buff[];
 
     bool is_locked() { return used & LOCKED; }
