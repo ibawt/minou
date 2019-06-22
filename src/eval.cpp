@@ -83,7 +83,7 @@ EvalResult eval_begin(Engine *engine, Atom a, EnvPtr env, Continuation *k) {
         return str("invalid begin structure");
     }
 
-    if (!a.value) {
+    if (a.is_nil()) {
         return k->resume(engine, Atom());
     }
 
@@ -123,8 +123,6 @@ class ApplyCont : public Continuation {
         if (!a.is_list()) {
             return str("invalid argument");
         }
-
-        cout << "apply: " << a << endl;
 
         switch (f.get_type()) {
         case AtomType::Primitive:
@@ -178,7 +176,6 @@ class ArgumentCont : public Continuation {
 };
 
 EvalResult eval_args(Engine *engine, Atom e, EnvPtr env, Continuation *k) {
-    cout << "eval_args: " << e << endl;
     if (!e.is_list()) {
         return str("must be a list");
     }

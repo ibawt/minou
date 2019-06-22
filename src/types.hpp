@@ -1,7 +1,7 @@
 #ifndef TYPES_H_
 #define TYPES_H_
 
-#include <cassert>
+#include <assert.h>
 #include <functional>
 #include <string>
 #include <variant>
@@ -105,9 +105,9 @@ struct Atom {
     Atom(int64_t i) : value(INTEGER | (i << TAG_BITS)) {}
     Atom(Boolean b) : value(BOOL | (b() << TAG_BITS)) {}
     Atom(Cons *cons) : value((intptr_t)cons) {
-        if (cons)
+        if (cons) {
             set_type(AtomType::Cons);
-        else {
+        } else {
             value = NIL;
         }
     }
@@ -166,12 +166,30 @@ struct Atom {
         assert(get_type() == AtomType::Cons);
         return (Cons *)value;
     }
-    bool boolean() const { return value >> TAG_BITS; }
-    Primitive *primitive() const { return (Primitive *)value; }
-    Lambda *lambda() const { return (Lambda *)value; }
-    Continuation *continuation() { return (Continuation *)value; }
-    Symbol *symbol() const { return (Symbol *)value; }
-    String *string() const { return (String *)value; }
+    bool boolean() const {
+        assert(get_type() == AtomType::Boolean);
+        return value >> TAG_BITS;
+    }
+    Primitive *primitive() const {
+        assert(get_type() == AtomType::Primitive);
+        return (Primitive *)value;
+    }
+    Lambda *lambda() const {
+        assert(get_type() == AtomType::Lambda);
+        return (Lambda *)value;
+    }
+    Continuation *continuation() {
+        assert(get_type() == AtomType::Continuation);
+        return (Continuation *)value;
+    }
+    Symbol *symbol() const {
+        assert(get_type() == AtomType::Symbol);
+        return (Symbol *)value;
+    }
+    String *string() const {
+        assert(get_type() == AtomType::String);
+        return (String *)value;
+    }
 
     bool operator==(const Atom &other) const {
         if (get_type() != other.get_type()) {

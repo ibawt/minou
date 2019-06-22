@@ -79,7 +79,7 @@ class Env {
             auto k = args->car;
             auto v = vars->car;
 
-            if (!k.cons() && !v.cons()) {
+            if (k.is_nil() && v.is_nil()) {
                 break;
             }
 

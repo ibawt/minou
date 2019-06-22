@@ -10,6 +10,7 @@
 #include <stddef.h>
 #include <string.h>
 #include <vector>
+#include <string>
 
 namespace minou {
 
@@ -50,6 +51,23 @@ inline void lock_object(const char *address) {
     auto p = (HeapNode *)(address - offsetof(HeapNode, buff));
     p->used |= LOCKED;
 }
+
+inline void unlock_object(const char *address) {
+    auto p = (HeapNode *)(address - offsetof(HeapNode, buff));
+    p->used &= ~LOCKED;
+}
+
+class LockedObject
+{
+    const char *address;
+public:
+    LockedObject(const char *address) : address(address) {
+        lock_object(address);
+    }
+    ~LockedObject() {
+        unlock_object(address);
+    }
+};
 
 class Memory {
   public:
