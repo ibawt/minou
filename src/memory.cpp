@@ -33,6 +33,9 @@ void mark_atom(Atom a) {
             }
         }
         break;
+    case AtomType::Primitive:
+        a.primitive()->visit();
+        break;
     case AtomType::Lambda:
         if (!has_visited((char *)a.value))
             a.lambda()->visit();
@@ -54,8 +57,8 @@ void mark(EnvPtr env) {
 void Memory::sweep() {
     for (auto it = allocations.begin(); it != allocations.end();) {
         auto h = *it;
-        if ((h->used & (LOCKED | USED)) == USED) {
-            switch (h->type) {
+        if (h->collectable()) {
+            switch (h->type()) {
             case AtomType::String: {
                 auto a = (String *)h->buff;
                 assert(a);
@@ -80,11 +83,12 @@ void Memory::sweep() {
                 break;
             }
             assert(h);
+            assert(!h->is_locked());
             free(h);
             it = allocations.erase(it);
         } else {
             ++it;
-            h->used &= ~USED;
+            h->clear_flag(USED);
         }
     }
 } // namespace minou

@@ -9,7 +9,7 @@
 namespace minou {
 
 enum class AtomType {
-    Number,
+    Number = 0,
     Cons,
     Symbol,
     String,
@@ -82,15 +82,44 @@ enum {
 };
 
 struct HeapNode {
-    HeapNode(int size) : size(size) {}
-    AtomType type;
-    int size;
-    int used = 0;
-    int _padding;
+    HeapNode(int size) : header(size << 16) { }
+    // 0-7 AtomType
+    // 8-15 flags
+    // 16-63 size
+    int64_t header;
     char buff[];
 
-    bool is_locked() { return used & LOCKED; }
-    bool has_visited() { return used & USED; }
+    AtomType type() const {
+        return AtomType(header & 0xff);
+    }
+
+    void set_type(AtomType t) {
+        header &= ~0xff;
+        header |= (int)t;
+    }
+
+    int flags() const {
+        return (header >> 8) & 0xff;
+    }
+
+    void set_flag(int flag) {
+        header |= flag << 8;
+    }
+
+    void clear_flag(int flag) {
+        header &= ~(flag << 8);
+    }
+
+    size_t size() const {
+        return header >> 16;
+    }
+
+    bool collectable() const {
+        return flags() == 0;
+    }
+
+    bool is_locked() { return flags() & LOCKED; }
+    bool has_visited() { return flags() & USED; }
 };
 
 inline const int INTEGER = 1;
@@ -137,7 +166,7 @@ struct Atom {
             set_tag(NIL);
             break;
         default:
-            ((HeapNode *)(value - offsetof(HeapNode, buff)))->type = t;
+            ((HeapNode *)(value - offsetof(HeapNode, buff)))->set_type(t);
         }
     }
 
@@ -152,7 +181,7 @@ struct Atom {
         default:
             return reinterpret_cast<HeapNode *>(value -
                                                 offsetof(HeapNode, buff))
-                ->type;
+                ->type();
         }
     }
 

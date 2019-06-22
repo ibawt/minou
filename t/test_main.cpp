@@ -7,6 +7,34 @@
 
 using namespace minou;
 
+TEST(HeapNode, Headers) {
+    HeapNode n(5);
+    n.set_type(AtomType::Cons);
+    EXPECT_EQ(n.size(), 5);
+    EXPECT_FALSE(n.has_visited());
+    EXPECT_FALSE(n.is_locked());
+    EXPECT_EQ(n.type(), AtomType::Cons);
+    EXPECT_TRUE(n.collectable());
+    n.set_flag(USED);
+    EXPECT_FALSE(n.collectable());
+    EXPECT_TRUE(n.has_visited());
+
+    n.clear_flag(USED);
+    EXPECT_TRUE(n.collectable());
+    EXPECT_FALSE(n.has_visited());
+
+    n.set_flag(LOCKED);
+    EXPECT_FALSE(n.collectable());
+    EXPECT_TRUE(n.is_locked());
+
+    n.clear_flag(LOCKED);
+    EXPECT_FALSE(n.is_locked());
+
+    n.set_flag(LOCKED);
+    n.clear_flag(USED);
+    EXPECT_FALSE(n.collectable());
+}
+
 TEST(Memory, CheckIfTypeIsSet) {
     Memory m;
 
@@ -114,7 +142,7 @@ TEST_F(EvalTest, Set) {
 
 TEST_F(EvalTest, SimpleCases) {
     auto foo = engine->get_memory().alloc<Symbol>("foo");
-    LockedObject((char*)foo);
+    LockedObject l((char*)foo);
     run({{"5", Atom(5L)}, {"(+ 1 2)", Atom(3L)}, {"'foo", foo}});
 }
 

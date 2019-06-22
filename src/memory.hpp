@@ -38,23 +38,23 @@ void mark(EnvPtr env);
 inline void visit(const char *address) {
     assert(address);
     auto p = (HeapNode *)(address - offsetof(HeapNode, buff));
-    p->used |= USED;
+    p->set_flag(USED);
 }
 
 inline bool has_visited(const char *address) {
     assert(address);
     auto p = (HeapNode *)(address - offsetof(HeapNode, buff));
-    return p->used & USED;
+    return p->has_visited();
 }
 
 inline void lock_object(const char *address) {
     auto p = (HeapNode *)(address - offsetof(HeapNode, buff));
-    p->used |= LOCKED;
+    p->set_flag(LOCKED);
 }
 
 inline void unlock_object(const char *address) {
     auto p = (HeapNode *)(address - offsetof(HeapNode, buff));
-    p->used &= ~LOCKED;
+    p->clear_flag(LOCKED);
 }
 
 class LockedObject
