@@ -43,8 +43,8 @@ class Env;
 class Procedure {
   public:
     virtual ~Procedure() {}
-    virtual EvalResult invoke(Engine *, Cons *args, EnvPtr env,
-                              Continuation *k) = 0;
+    virtual Result<Atom> invoke(Engine *, Cons *args, EnvPtr env,
+                                Continuation *k) = 0;
     virtual void visit() {}
 };
 

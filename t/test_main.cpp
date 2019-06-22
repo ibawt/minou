@@ -133,4 +133,8 @@ TEST_F(EvalTest, If) {
          {"(if 5 1 0)", Atom(1L)}});
 }
 
-TEST_F(EvalTest, CallCC) { run({{"(call/cc (lambda (k) (k 1)))", Atom(1L)}}); }
+TEST_F(EvalTest, CallCC) {
+    run({
+        {"(call/cc (lambda (k) (k 1)))", Atom(1L)},
+    });
+}

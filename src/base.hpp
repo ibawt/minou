@@ -29,6 +29,7 @@ template <typename T> inline bool is_error(std::variant<T, const Error> v) {
 }
 template <typename T> using Result = std::variant<T, const Error>;
 
+// TODO: figure out why this doesn't work on OSX
 // template<typename T>
 // inline std::ostream& operator<<(std::ostream& os, const Result<T>& r)
 // {
