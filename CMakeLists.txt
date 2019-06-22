@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 project(minou)
 
-set(CMAKE_BUILD_TYPE Debug)
-
 configure_file(CMakeLists.txt.in googletest-download/CMakeLists.txt)
 execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
   RESULT_VARIABLE result
@@ -58,18 +56,9 @@ add_executable(minou ${main} ${files})
 target_compile_features(minou PRIVATE cxx_std_17)
 target_link_libraries(minou readline)
 
-if(MSVC)
-  add_compile_options(minou /W4 /WX)
-else()
-  add_compile_options(minou -Wall)
-endif()
-
-
 # # Add test cpp file
-enable_testing()
 add_executable( minou-tests t/test_main.cpp ${files})
 # # Link test executable against gtest & gtest_main
 target_compile_features(minou-tests PRIVATE cxx_std_17)
 target_link_libraries(minou-tests gtest gtest_main)
 include_directories("src/")
-add_test( minou-tests minou-tests)

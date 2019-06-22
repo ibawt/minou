@@ -61,29 +61,25 @@ void Memory::sweep() {
             switch (h->type()) {
             case AtomType::String: {
                 auto a = (String *)h->buff;
-                assert(a);
                 a->~String();
             } break;
             case AtomType::Symbol: {
                 auto a = (Symbol *)h->buff;
-                assert(a);
                 a->~Symbol();
             } break;
             case AtomType::Lambda: {
                 auto a = (Lambda *)h->buff;
-                assert(a);
                 a->~Lambda();
                 break;
             }
             case AtomType::Continuation: {
                 auto a = (Continuation *)h->buff;
                 a->~Continuation();
-            } break;
+                break;
+            }
             default:
                 break;
             }
-            assert(h);
-            assert(!h->is_locked());
             free(h);
             it = allocations.erase(it);
         } else {

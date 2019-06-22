@@ -168,7 +168,7 @@ struct Atom {
         }
     }
 
-    AtomType get_type() const {
+    inline AtomType get_type() const {
         switch (value & TAG_MASK) {
         case INTEGER:
             return AtomType::Number;
@@ -177,13 +177,10 @@ struct Atom {
         case NIL:
             return AtomType::Nil;
         default:
-            return reinterpret_cast<HeapNode *>(value -
-                                                offsetof(HeapNode, buff))
-                ->type();
+            return ((HeapNode *)(value - offsetof(HeapNode, buff)))->type();
         }
     }
 
-    // template <typename T> T get_value() const;
     int64_t integer() const { return value >> TAG_BITS; }
 
     Cons *cons() const {
@@ -238,6 +235,8 @@ struct Atom {
     bool is_list() const { return get_type() == AtomType::Cons || get_type() == AtomType::Nil; }
     bool is_pair() const { return get_type() == AtomType::Cons && value != 0; }
 };
+
+static_assert(sizeof(Atom)== 8);
 
 std::ostream &operator<<(std::ostream &os, const Atom &a);
 

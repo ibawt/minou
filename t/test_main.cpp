@@ -143,6 +143,7 @@ TEST_F(EvalTest, Set) {
 TEST_F(EvalTest, SimpleCases) {
     auto foo = engine->get_memory().alloc<Symbol>("foo");
     LockedObject l((char*)foo);
+
     run({{"5", Atom(5L)}, {"(+ 1 2)", Atom(3L)}, {"'foo", foo}});
 }
 
