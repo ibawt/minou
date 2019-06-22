@@ -1,13 +1,18 @@
 #include "minou.hpp"
 #include <assert.h>
-#include <iostream>
 #include <sstream>
+#include <string>
+#include <iostream>
 
 namespace minou {
+using std::cout;
+using std::endl;
 
 static void print_list(std::stringstream &s, const Atom &a) {
-    assert(a.type == AtomType::Cons);
-    const Cons *cur = a.cons;
+    assert(a.get_type() == AtomType::Cons);
+    if(a.is_nil())
+        return;
+    const Cons *cur = a.cons();
     if (!cur) {
         return;
     }
@@ -32,15 +37,15 @@ std::ostream &operator<<(std::ostream &os, const Atom &a) {
 }
 
 bool equalsp(const Atom &a, const Atom &b) {
-    if (a.type != b.type) {
+    if (a.get_type() != b.get_type()) {
         return false;
     }
     if (!a.is_list()) {
         return false;
     }
 
-    Cons *ca = a.cons;
-    Cons *cb = b.cons;
+    Cons *ca = a.cons();
+    Cons *cb = b.cons();
 
     for (;;) {
         if (!ca && !cb) {
@@ -68,9 +73,9 @@ bool equalsp(const Atom &a, const Atom &b) {
 std::string Atom::to_string() const {
     std::stringstream s;
 
-    switch (type) {
+    switch (get_type()) {
     case AtomType::Number:
-        s << integer.value;
+        s << integer();
         break;
     case AtomType::Cons:
         s << "(";
@@ -78,12 +83,12 @@ std::string Atom::to_string() const {
         s << ")";
         break;
     case AtomType::Symbol:
-        assert(symbol);
-        s << *symbol;
+        assert(symbol());
+        s << *symbol();
         break;
     case AtomType::String:
-        assert(string);
-        s << "\"" << *string << "\"";
+        assert(string());
+        s << "\"" << *string() << "\"";
         break;
     case AtomType::Lambda:
         s << "lambda()";
@@ -96,6 +101,8 @@ std::string Atom::to_string() const {
         break;
     case AtomType::Boolean:
         s << (boolean() ? "#t" : "#f");
+    case AtomType::Continuation:
+        s << "continuation()";
     }
     return s.str();
 }

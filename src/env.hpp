@@ -8,16 +8,18 @@
 
 #include "base.hpp"
 #include "types.hpp"
+#include <string>
 
 namespace minou {
 class Env;
 
 typedef Env *EnvPtr;
+class Engine;
 
 class Env {
   public:
     Env(EnvPtr p) : parent(p) {}
-    Env() { default_env(); }
+    Env(Engine *engine) { default_env(engine); }
 
     std::optional<Atom> lookup(const Symbol &key) {
         auto f = map.find(key.string);
@@ -61,7 +63,9 @@ class Env {
         }
     }
 
-    void set(const Symbol &key, Atom value) { map[key.string] = value; }
+    void set(const Symbol &key, Atom value) {
+        map[key.string] = value;
+    }
 
     Result<std::monostate> extend(Cons *args, Cons *vars) {
         for (;;) {
@@ -75,15 +79,15 @@ class Env {
             auto k = args->car;
             auto v = vars->car;
 
-            if (!k.cons && !v.cons) {
+            if (!k.cons() && !v.cons()) {
                 break;
             }
 
-            if (k.type != AtomType::Symbol) {
-                return "invalid argument type:" + k.cons->car.to_string();
+            if (k.get_type() != AtomType::Symbol) {
+                return "invalid argument type:" + k.cons()->car.to_string();
             }
 
-            set(*k.symbol, v);
+            set(*k.symbol(), v);
 
             args = args->cdr;
             vars = vars->cdr;
@@ -92,7 +96,7 @@ class Env {
     }
 
   private:
-    void default_env();
+    void default_env(Engine *);
 
     std::map<const std::string, Atom> map;
     std::optional<EnvPtr> parent;

@@ -6,7 +6,7 @@
 namespace minou {
 
 EvalResult Engine::eval(const std::string_view &s) {
-    memory.mark_and_sweep(&global);
+    memory.mark_and_sweep(global.get());
 
     auto atom = parse(memory, s);
 
@@ -16,7 +16,7 @@ EvalResult Engine::eval(const std::string_view &s) {
 
     BottomCont cont;
 
-    return minou::eval(this, get_atom(atom), &global, &cont);
+    return minou::eval(this, get_atom(atom), global.get(), &cont);
 }
 
 } // namespace minou

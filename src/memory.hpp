@@ -10,7 +10,6 @@
 #include <stddef.h>
 #include <string.h>
 #include <vector>
-#include <string>
 
 namespace minou {
 
@@ -34,22 +33,6 @@ template <> constexpr inline AtomType type(Continuation *k) {
 
 void mark_atom(Atom);
 void mark(EnvPtr env);
-
-enum {
-    USED = 1,
-    LOCKED = 2,
-};
-
-struct HeapNode {
-    HeapNode(int size) : size(size) {}
-    AtomType type;
-    int size;
-    int used = 0;
-    char buff[];
-
-    bool is_locked() { return used & LOCKED; }
-    bool has_visited() { return used & USED; }
-};
 
 inline void visit(const char *address) {
     assert(address);
@@ -101,6 +84,7 @@ class Memory {
         auto t = new ((char *)block + offsetof(HeapNode, buff))
             T(std::forward<Args>(args)...);
 
+        assert( ((intptr_t)t & TAG_MASK) == 0 );
         return t;
     }
 

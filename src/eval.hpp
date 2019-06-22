@@ -80,6 +80,9 @@ class Primitive : public Procedure {
         return op(eng, args, env, k);
     }
 
+    void visit() override {
+        minou::visit((char *) this);
+    }
   private:
     std::function<Applicative> op;
 };

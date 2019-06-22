@@ -18,15 +18,15 @@ void Memory::free_all() {
 }
 
 void mark_atom(Atom a) {
-    switch (a.type) {
+    switch (a.get_type()) {
     case AtomType::String:
-        visit((char *)a.string);
+        visit((char *)a.value);
         break;
     case AtomType::Symbol:
-        visit((char *)a.symbol);
+        visit((char *)a.value);
         break;
     case AtomType::Cons:
-        for (auto c = a.cons; c; c = c->cdr) {
+        for (auto c = a.cons(); c; c = c->cdr) {
             if (!has_visited((char *)c)) {
                 visit((char *)c);
                 mark_atom(c->car);
@@ -34,8 +34,8 @@ void mark_atom(Atom a) {
         }
         break;
     case AtomType::Lambda:
-        if (!has_visited((char *)a.lambda))
-            a.lambda->visit();
+        if (!has_visited((char *)a.value))
+            a.lambda()->visit();
         break;
     default:
         break;
@@ -68,6 +68,10 @@ void Memory::sweep() {
                 a->~Lambda();
                 break;
             }
+            case AtomType::Continuation: {
+                auto a = (Continuation *)h->buff;
+                a->~Continuation();
+            } break;
             default:
                 break;
             }
@@ -79,7 +83,7 @@ void Memory::sweep() {
             h->used &= ~USED;
         }
     }
-}
+} // namespace minou
 
 void Memory::mark_and_sweep(EnvPtr root) {
     assert(root);

@@ -20,10 +20,10 @@ class SetCont : public Continuation {
     SetCont(Continuation *k, Atom n, EnvPtr env) : n(n), env(env), k(k) {}
 
     EvalResult resume(Engine *engine, Atom a) override {
-        if (n.type != AtomType::Symbol) {
+        if (n.get_type() != AtomType::Symbol) {
             return std::string("must be a symbol");
         }
-        env->update(*n.symbol, a);
+        env->update(*((Symbol *)n.value), a);
         return k->resume(engine, a);
     }
 
@@ -38,10 +38,10 @@ class DefineCont : public Continuation {
     DefineCont(Continuation *k, Atom n, EnvPtr env) : n(n), env(env), k(k) {}
 
     EvalResult resume(Engine *engine, Atom a) override {
-        if (n.type != AtomType::Symbol) {
+        if (n.get_type() != AtomType::Symbol) {
             return std::string("must be a symbol");
         }
-        env->set(*n.symbol, a);
+        env->set(*((Symbol *)n.value), a);
         return k->resume(engine, a);
     }
 
@@ -83,16 +83,16 @@ EvalResult eval_begin(Engine *engine, Atom a, EnvPtr env, Continuation *k) {
         return str("invalid begin structure");
     }
 
-    if (!a.cons) {
+    if (!a.value) {
         return k->resume(engine, Atom());
     }
 
-    if (!a.cons->cdr) {
-        return eval(engine, a.cons->car, env, k);
+    if (!a.cons()->cdr) {
+        return eval(engine, a.cons()->car, env, k);
     }
 
-    BeginCont bc(k, a.cons->cdr, env);
-    return eval(engine, a.cons->car, env, &bc);
+    BeginCont bc(k, a.cons()->cdr, env);
+    return eval(engine, a.cons()->car, env, &bc);
 }
 
 class IfCont : public Continuation {
@@ -101,7 +101,7 @@ class IfCont : public Continuation {
         : true_value(t), false_value(f), k(k), env(env) {}
 
     EvalResult resume(Engine *engine, Atom a) override {
-        if (a.type == AtomType::Boolean && !a.boolean()) {
+        if (a.get_type() == AtomType::Boolean && !a.boolean()) {
             // only #f is false
             return eval(engine, false_value, env, k);
         }
@@ -123,16 +123,16 @@ class ApplyCont : public Continuation {
         if (!a.is_list()) {
             return str("invalid argument");
         }
-        switch (f.type) {
+
+        cout << "apply: " << a << endl;
+
+        switch (f.get_type()) {
         case AtomType::Primitive:
-            assert(f.primitive);
-            return f.primitive->invoke(engine, a.cons, env, k);
+            return f.primitive()->invoke(engine, a.cons(), env, k);
         case AtomType::Lambda:
-            assert(f.lambda);
-            return f.lambda->invoke(engine, a.cons, env, k);
+            return f.lambda()->invoke(engine, a.cons(), env, k);
         case AtomType::Continuation:
-            assert(f.continuation);
-            return f.continuation->invoke(engine, a.cons, env, k);
+            return f.continuation()->invoke(engine, a.cons(), env, k);
         default:
             return str("invalid type for apply: " + f.to_string());
         }
@@ -148,9 +148,8 @@ class GatherCont : public Continuation {
   public:
     GatherCont(Continuation *k, Atom v) : k(k), v(v) {}
     EvalResult resume(Engine *engine, Atom a) override {
-        if (a.type == AtomType::Cons) {
-            return k->resume(engine,
-                             engine->get_memory().alloc<Cons>(v, a.cons));
+        if (a.is_list()) {
+            return k->resume(engine, engine->get_memory().alloc<Cons>(v, a.cons()));
         }
         return std::string("gather invalid structure");
     }
@@ -167,7 +166,7 @@ class ArgumentCont : public Continuation {
     EvalResult resume(Engine *engine, Atom a) override {
         if (e.is_pair()) {
             GatherCont gc(k, a);
-            return eval_args(engine, e.cons->cdr, env, &gc);
+            return eval_args(engine, e.cons()->cdr, env, &gc);
         }
         return str("arg invalid structure: " + e.to_string());
     }
@@ -179,16 +178,17 @@ class ArgumentCont : public Continuation {
 };
 
 EvalResult eval_args(Engine *engine, Atom e, EnvPtr env, Continuation *k) {
+    cout << "eval_args: " << e << endl;
     if (!e.is_list()) {
         return str("must be a list");
     }
-    if (!e.cons) {
+    if (e.get_type() == AtomType::Nil) {
         // empty list
         return k->resume(engine, e);
     }
     auto ac = engine->get_memory().alloc<ArgumentCont>(k, e, env);
     // ArgumentCont ac(k, e, env);
-    return eval(engine, e.cons->car, env, ac);
+    return eval(engine, e.cons()->car, env, ac);
 }
 
 class EvFunCont : public Continuation {
@@ -310,63 +310,64 @@ EvalResult eval_variable(Engine *engine, const Symbol &s, EnvPtr &env,
 }
 
 Result<Atom> eval(Engine *engine, Atom a, EnvPtr env, Continuation *k) {
-    switch (a.type) {
+    switch (a.get_type()) {
     case AtomType::Cons:
-        if (!a.cons) {
+        if (!a.cons()) {
             return "invalid list application";
         }
 
-        if (a.cons->car.type == AtomType::Symbol) {
+        if (a.cons()->car.get_type() == AtomType::Symbol) {
 
-            assert(a.cons->car.symbol);
-            const auto &sym = *a.cons->car.symbol;
+            assert(a.cons()->car.symbol());
+            const auto &sym = *a.cons()->car.symbol();
 
             // IF
             if (sym == "if") {
-                if (!has_at_least_n(a.cons, 3)) {
+                if (!has_at_least_n(a.cons(), 3)) {
                     return std::string("invalid list structure for if");
                 }
-                IfCont ifCont(k, caddr(a.cons), cadddr(a.cons), env);
-                return eval(engine, a.cons->cdr->car, env, &ifCont);
+                IfCont ifCont(k, caddr(a.cons()), cadddr(a.cons()), env);
+                return eval(engine, a.cons()->cdr->car, env, &ifCont);
             } else if (sym == "define") {
-                DefineCont sc(k, a.cons->cdr->car, env);
-                return eval(engine, a.cons->cdr->cdr->car, env, &sc);
+                DefineCont sc(k, a.cons()->cdr->car, env);
+                return eval(engine, a.cons()->cdr->cdr->car, env, &sc);
             } else if (sym == "set!") {
-                SetCont sc(k, a.cons->cdr->car, env);
+                SetCont sc(k, a.cons()->cdr->car, env);
 
-                return eval(engine, a.cons->cdr->cdr->car, env, &sc);
+                return eval(engine, a.cons()->cdr->cdr->car, env, &sc);
             }
             // QUOTE
             else if (sym == "quote") {
-                if (!a.cons->cdr) {
+                if (!a.cons()->cdr) {
                     return std::string("invalid quote call");
                 }
-                return eval_quote(engine, a.cons->cdr->car, k);
+                return eval_quote(engine, a.cons()->cdr->car, k);
             }
             // BEGIN
             else if (sym == "begin") {
-                return eval_begin(engine, a.cons->cdr, env, k);
+                return eval_begin(engine, a.cons()->cdr, env, k);
             }
             // LAMBDA
             else if (sym == "lambda") {
-                if (!has_at_least_n(a.cons, 3)) {
+                if (!has_at_least_n(a.cons(), 3)) {
                     return std::string("invalid arity");
                 }
                 auto l = engine->get_memory().alloc<Lambda>(
-                    a.cons->cdr->car.cons, a.cons->cdr->cdr, env);
+                    a.cons()->cdr->car.cons(), a.cons()->cdr->cdr, env);
                 return k->resume(engine, l);
             }
             // EVAL
             else {
-                return eval_application(engine, a.cons->car, a.cons->cdr, env,
-                                        k);
+                return eval_application(engine, a.cons()->car, a.cons()->cdr,
+                                        env, k);
             }
         } else {
-            return eval_application(engine, a.cons->car, a.cons->cdr, env, k);
+            return eval_application(engine, a.cons()->car, a.cons()->cdr, env,
+                                    k);
         }
         break;
     case AtomType::Symbol:
-        return eval_variable(engine, *a.symbol, env, k);
+        return eval_variable(engine, *a.symbol(), env, k);
         break;
     default:
         return eval_quote(engine, a, k);

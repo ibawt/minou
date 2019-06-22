@@ -21,7 +21,7 @@ TEST(Memory, CheckIfTypeIsSet) {
     };
 
     for (const auto &t : tests) {
-        EXPECT_EQ(t.a.type, t.expected);
+        EXPECT_EQ(t.a.get_type(), t.expected);
     }
 }
 
