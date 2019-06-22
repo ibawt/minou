@@ -76,17 +76,15 @@ class Lambda;
 class Primitive;
 class Continuation;
 
-enum {
-    USED = 1,
-    LOCKED = 2,
-};
+inline const int USED   = 1;
+inline const int LOCKED = 2;
 
 struct HeapNode {
     HeapNode(int size) : header(size << 16) { }
     // 0-7 AtomType
     // 8-15 flags
     // 16-63 size
-    int64_t header;
+    uint64_t header;
     char buff[];
 
     AtomType type() const {
