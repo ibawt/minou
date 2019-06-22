@@ -31,11 +31,17 @@ class Continuation {
 
         return k->resume(engine, args->car);
     }
+
+    virtual void visit() {
+        ::minou::visit((char*)this);
+    }
 };
 
 class BottomCont : public Continuation {
   public:
     EvalResult resume(Engine *, Atom a) override { return a; }
+
+    void visit() override {}
 };
 
 class Env;

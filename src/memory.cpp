@@ -37,6 +37,10 @@ void mark_atom(Atom a) {
         if (!has_visited((char *)a.value))
             a.lambda()->visit();
         break;
+    case AtomType::Continuation:
+        if(!has_visited((char *)a.value)) {
+            a.continuation()->visit();
+        }
     default:
         break;
     }
