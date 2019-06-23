@@ -65,6 +65,8 @@ void Memory::free_node(HeapNode *h)
         break;
     }
     case AtomType::Cons: {
+        auto a = (Cons*)h->buff;
+        a->~Cons();
         consSlab->free((char *)h);
         return;
     }

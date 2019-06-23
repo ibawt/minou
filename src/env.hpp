@@ -22,7 +22,7 @@ class Env {
     Env(Engine *engine) { default_env(engine); }
 
     std::optional<Atom> lookup(const Symbol &key) {
-        auto f = map.find(key.string());
+        auto f = map.find(key.interned_value);
 
         if (f == map.end()) {
             if (parent.has_value()) {
@@ -42,7 +42,7 @@ class Env {
         auto t = this;
 
         for (;;) {
-            auto f = t->map.find(key.string());
+            auto f = t->map.find(key.interned_value);
 
             if (f != t->map.end()) {
                 f->second = value;
@@ -59,12 +59,12 @@ class Env {
 
     void for_each(std::function<void(const std::string_view, Atom)> f) {
         for (auto [key, value] : map) {
-            f(key, value);
+            f(Symbol(key).string(), value);
         }
     }
 
     void set(const Symbol &key, Atom value) {
-        map[key.string()] = value;
+        map[key.interned_value] = value;
     }
 
     Result<std::monostate> extend(Cons *args, Cons *vars) {
@@ -98,7 +98,7 @@ class Env {
   private:
     void default_env(Engine *);
 
-    std::map<const std::string, Atom> map;
+    std::map<int, Atom> map;
     std::optional<EnvPtr> parent;
 };
 

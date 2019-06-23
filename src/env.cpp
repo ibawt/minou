@@ -65,9 +65,9 @@ static Result<Atom> call_cc(Engine *engine, Cons *args, Env *env,
 }
 
 void Env::default_env(Engine *engine) {
-    map["+"] = engine->get_memory().alloc<Primitive>(add);
-    map["-"] = engine->get_memory().alloc<Primitive>(subtraction);
-    map["call/cc"] = engine->get_memory().alloc<Primitive>(call_cc);
+    map[Symbol("+").interned_value] = engine->get_memory().alloc<Primitive>(add);
+    map[Symbol("-").interned_value] = engine->get_memory().alloc<Primitive>(subtraction);
+    map[Symbol("call/cc").interned_value] = engine->get_memory().alloc<Primitive>(call_cc);
 }
 
 } // namespace minou
