@@ -35,7 +35,7 @@ class SetCont : public Continuation {
 
     EvalResult resume(Engine *engine, Atom a) override {
         CHECK_TYPE(AtomType::Symbol, n);
-        env->update(*n.symbol(), a);
+        env->update(n.symbol(), a);
         return k->resume(engine, a);
     }
 
@@ -51,7 +51,7 @@ class DefineCont : public Continuation {
 
     EvalResult resume(Engine *engine, Atom a) override {
         CHECK_TYPE(AtomType::Symbol, n);
-        env->set(*n.symbol(), a);
+        env->set(n.symbol(), a);
         return k->resume(engine, a);
     }
 
@@ -325,8 +325,8 @@ Result<Atom> eval(Engine *engine, Atom a, EnvPtr env, Continuation *k) {
 
         if (a.cons()->car.get_type() == AtomType::Symbol) {
 
-            assert(a.cons()->car.symbol());
-            const auto &sym = *a.cons()->car.symbol();
+            // assert(a.cons()->car.symbol());
+            auto sym = a.cons()->car.symbol();
 
             // IF
             if (sym == "if") {
@@ -374,7 +374,7 @@ Result<Atom> eval(Engine *engine, Atom a, EnvPtr env, Continuation *k) {
         }
         break;
     case AtomType::Symbol:
-        return eval_variable(engine, *a.symbol(), env, k);
+        return eval_variable(engine, a.symbol(), env, k);
         break;
     default:
         return eval_quote(engine, a, k);

@@ -83,8 +83,7 @@ std::string Atom::to_string() const {
         s << ")";
         break;
     case AtomType::Symbol:
-        assert(symbol());
-        s << *symbol();
+        s << symbol();
         break;
     case AtomType::String:
         assert(string());

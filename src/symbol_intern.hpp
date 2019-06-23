@@ -8,11 +8,14 @@
 
 namespace minou {
 
+const std::string& symbol_to_string(int sym);
+int intern(const std::string& s);
+
 class SymbolInterner {
     std::vector<std::string> table;
     std::unordered_map<std::string, int> string_index_map;
   public:
-    const std::string_view get_string(int id) const {
+    const std::string& get_string(int id) const {
         assert(id >= 0 && id < table.size());
         return table[id];
     }

@@ -22,9 +22,6 @@ void mark_atom(Atom a) {
     case AtomType::String:
         visit((char *)a.value);
         break;
-    case AtomType::Symbol:
-        visit((char *)a.value);
-        break;
     case AtomType::Cons:
         for (auto c = a.cons(); c; c = c->cdr) {
             if (!has_visited((char *)c)) {
@@ -51,7 +48,7 @@ void mark_atom(Atom a) {
 
 void mark(EnvPtr env) {
     env->for_each(
-        [](const std::string &key UNUSED, Atom value) { mark_atom(value); });
+        [](const std::string_view key UNUSED, Atom value) { mark_atom(value); });
 }
 
 void Memory::free_node(HeapNode *h)
@@ -61,10 +58,6 @@ void Memory::free_node(HeapNode *h)
     case AtomType::String: {
         auto a = (String *)h->buff;
         a->~String();
-    } break;
-    case AtomType::Symbol: {
-        auto a = (Symbol *)h->buff;
-        a->~Symbol();
     } break;
     case AtomType::Lambda: {
         auto a = (Lambda *)h->buff;

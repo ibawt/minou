@@ -66,7 +66,7 @@ struct Parser {
     Memory &memory;
 
     ParseResult quote_atom(Atom a) {
-        std::vector<Atom> lis{memory.alloc<Symbol>("quote"), a};
+        std::vector<Atom> lis{Symbol("quote"), a};
         return memory.make_list(lis);
     }
 
@@ -209,7 +209,7 @@ struct Parser {
                 return Atom(r.value());
             }
         }
-        return memory.alloc<Symbol>(v);
+        return Symbol(v);
     }
 };
 

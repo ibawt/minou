@@ -42,7 +42,7 @@ TEST(Memory, CheckIfTypeIsSet) {
         Atom a;
         AtomType expected;
     } tests[] = {
-        {m.alloc<Symbol>(""), AtomType::Symbol},
+        {Symbol(""), AtomType::Symbol},
         {m.alloc<String>(""), AtomType::String},
         {m.alloc_cons(Atom(), nullptr), AtomType::Cons},
         {m.alloc<Lambda>(nullptr, nullptr, nullptr), AtomType::Lambda},
@@ -69,7 +69,7 @@ TEST(Parsing, AllTheThings) {
         {"5", Atom(5L)},
         {"-1", Atom(-1L)},
         {"nil", Atom()},
-        {"foo", m.alloc<Symbol>("foo")},
+        {"foo", Symbol("foo")},
         {"\"stuff\"", m.alloc<String>("stuff")},
         {"#t", Boolean(true)},
         {"#f", Atom(Boolean(false))},
@@ -83,12 +83,12 @@ TEST(Parsing, AllTheThings) {
 
     auto l = parse(m, "(1 2)");
     ASSERT_TRUE(equalsp(get_atom(l), m.make_list({1L, 2L})));
-    ASSERT_TRUE(equalsp(get_atom(parse(m, "(foo (bar))")),
-                        m.make_list({m.alloc<Symbol>("foo"),
-                                     m.make_list({m.alloc<Symbol>("bar")})})));
+    ASSERT_TRUE(
+        equalsp(get_atom(parse(m, "(foo (bar))")),
+                m.make_list({Symbol("foo"), m.make_list({Symbol("bar")})})));
     ASSERT_TRUE(equalsp(
         get_atom(parse(m, "'foo")),
-        m.make_list({m.alloc<Symbol>("quote"), m.alloc<Symbol>("foo")})));
+        m.make_list({Symbol("quote"), Symbol("foo")})));
     ASSERT_TRUE(equalsp(get_atom(parse(m, "()")), m.make_list({})));
 }
 
@@ -141,10 +141,7 @@ TEST_F(EvalTest, Set) {
 }
 
 TEST_F(EvalTest, SimpleCases) {
-    auto foo = engine->get_memory().alloc<Symbol>("foo");
-    LockedObject l((char*)foo);
-
-    run({{"5", Atom(5L)}, {"(+ 1 2)", Atom(3L)}, {"'foo", foo}});
+    run({{"5", Atom(5L)}, {"(+ 1 2)", Atom(3L)}, {"'foo", Symbol("foo")}});
 }
 
 TEST_F(EvalTest, Begin) {

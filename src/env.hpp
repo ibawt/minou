@@ -22,7 +22,7 @@ class Env {
     Env(Engine *engine) { default_env(engine); }
 
     std::optional<Atom> lookup(const Symbol &key) {
-        auto f = map.find(key.string);
+        auto f = map.find(key.string());
 
         if (f == map.end()) {
             if (parent.has_value()) {
@@ -42,7 +42,7 @@ class Env {
         auto t = this;
 
         for (;;) {
-            auto f = t->map.find(key.string);
+            auto f = t->map.find(key.string());
 
             if (f != t->map.end()) {
                 f->second = value;
@@ -57,14 +57,14 @@ class Env {
         }
     }
 
-    void for_each(std::function<void(const std::string &, Atom)> f) {
+    void for_each(std::function<void(const std::string_view, Atom)> f) {
         for (auto [key, value] : map) {
             f(key, value);
         }
     }
 
     void set(const Symbol &key, Atom value) {
-        map[key.string] = value;
+        map[key.string()] = value;
     }
 
     Result<std::monostate> extend(Cons *args, Cons *vars) {
@@ -87,7 +87,7 @@ class Env {
                 return "invalid argument type:" + k.cons()->car.to_string();
             }
 
-            set(*k.symbol(), v);
+            set(k.symbol(), v);
 
             args = args->cdr;
             vars = vars->cdr;

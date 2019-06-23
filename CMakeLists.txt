@@ -51,6 +51,8 @@ set(files
   src/parser.hpp
   src/eval.cpp
   src/eval.hpp
+  src/symbol_intern.hpp
+  src/symbol_interner.cpp
   )
 
 add_executable(minou ${main} ${files})

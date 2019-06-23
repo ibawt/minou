@@ -6,6 +6,8 @@
 #include <string>
 #include <variant>
 
+#include "symbol_intern.hpp"
+
 namespace minou {
 
 inline constexpr int bit_mask(int num_bits) {
@@ -57,6 +59,7 @@ constexpr inline bool is_heap_type(const AtomType a) {
     case AtomType::Number:
     case AtomType::Nil:
     case AtomType::Boolean:
+    case AtomType::Symbol:
         return false;
     default:
         return true;
@@ -76,20 +79,26 @@ using String = std::string;
 
 class Symbol {
   public:
-    Symbol(const char *s) : string(s) {}
-    Symbol(const std::string &s) : string(s) {}
+    Symbol(const char *s) : interned_value(intern(s)) {}
+    Symbol(const std::string &s) : interned_value(intern(s)) {}
+    Symbol(int i) : interned_value(i) {}
 
     bool operator==(const Symbol &other) const {
-        return this->string == other.string;
+        return interned_value == other.interned_value;
     }
     bool operator<(const Symbol &other) const {
-        return this->string < other.string;
+        return string() < other.string() ;
     }
-    std::string string;
+
+    const std::string& string() const {
+        return symbol_to_string(interned_value);
+    }
+
+    const int interned_value;
 };
 
 inline std::ostream &operator<<(std::ostream &os, const Symbol &a) {
-    os << a.string;
+    os << a.string();
     return os;
 }
 
@@ -153,6 +162,7 @@ struct HeapNode {
     bool has_visited() { return flags() & USED; }
 };
 
+// atom tagging
 inline const int INTEGER = 1;
 inline const int BOOL    = 2;
 inline const int NIL     = 3;
@@ -172,9 +182,9 @@ struct Atom {
             value = NIL;
         }
     }
+    Atom(Symbol s) : value(s.interned_value << TAG_BITS) { set_type(AtomType::Symbol); }
     Atom(Primitive *p) : value((intptr_t)p) { set_type(AtomType::Primitive); }
     Atom(Lambda *p) : value((intptr_t)p) { set_type(AtomType::Lambda); }
-    Atom(Symbol *s) : value((intptr_t)s) { set_type(AtomType::Symbol); }
     Atom(String *s) : value((intptr_t)s) { set_type(AtomType::String); }
     Atom(Continuation *c) : value((intptr_t)c) {
         set_type(AtomType::Continuation);
@@ -197,12 +207,15 @@ struct Atom {
         case AtomType::Nil:
             set_tag(NIL);
             break;
+        case AtomType::Symbol:
+            set_tag(SYMBOL);
+            break;
         default:
             ((HeapNode *)(value - offsetof(HeapNode, buff)))->set_type(t);
         }
     }
 
-    inline AtomType get_type() const {
+    AtomType get_type() const {
         switch (value & TAG_MASK) {
         case INTEGER:
             return AtomType::Number;
@@ -210,6 +223,8 @@ struct Atom {
             return AtomType::Boolean;
         case NIL:
             return AtomType::Nil;
+        case SYMBOL:
+            return AtomType::Symbol;
         default:
             return ((HeapNode *)(value - offsetof(HeapNode, buff)))->type();
         }
@@ -240,9 +255,9 @@ struct Atom {
         assert(get_type() == AtomType::Continuation);
         return (Continuation *)value;
     }
-    Symbol *symbol() const {
+    Symbol symbol() const {
         assert(get_type() == AtomType::Symbol);
-        return (Symbol *)value;
+        return Symbol(value >> TAG_BITS);
     }
     String *string() const {
         assert(get_type() == AtomType::String);
@@ -256,7 +271,7 @@ struct Atom {
 
         switch (get_type()) {
         case AtomType::Symbol:
-            return *symbol() == *other.symbol();
+            return symbol() == other.symbol();
         case AtomType::String:
             return *string() == *other.string();
         default:
