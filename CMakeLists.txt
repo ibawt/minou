@@ -43,6 +43,8 @@ set(files
   src/memory.cpp
   src/engine.hpp
   src/engine.cpp
+  src/slab.hpp
+  src/slab.cpp
   src/minou.hpp
   src/minou.cpp
   src/parser.cpp

@@ -10,6 +10,7 @@
 #include <stddef.h>
 #include <string.h>
 #include <vector>
+#include "slab.hpp"
 #include <string>
 
 namespace minou {
@@ -71,6 +72,10 @@ public:
 
 class Memory {
   public:
+    Memory() {
+        consSlab = std::make_unique<Slab>(sizeof(HeapNode) + sizeof(Cons), 1024*1024);
+    }
+
     ~Memory() { free_all(); }
 
     Cons *make_list(const std::vector<Atom> &list) {
@@ -78,7 +83,7 @@ class Memory {
         Cons *head = nullptr;
 
         for (const auto &a : list) {
-            auto nc = alloc<Cons>(a, nullptr);
+            auto nc = alloc_cons(a, nullptr);
 
             if (!c) {
                 c = nc;
@@ -102,12 +107,37 @@ class Memory {
         auto t = new ((char *)block + offsetof(HeapNode, buff))
             T(std::forward<Args>(args)...);
 
+        Atom a(t);
+        ++total_allocations;
         assert( ((intptr_t)t & TAG_MASK) == 0 );
-        return t;
+        return (T*)a.value;
+    }
+
+    Cons* alloc_cons(Atom a, Cons* next) {
+        auto block = consSlab->get();
+        int len = sizeof(HeapNode) + sizeof(Cons);
+        // memset(block, 0, len);
+        auto hn = new (block) HeapNode(len);
+        Cons *c = new (hn->buff) Cons(a, next);
+        assert( (((intptr_t)c) & TAG_MASK) == 0 );
+        hn->set_type(AtomType::Cons);
+        ++total_allocations;
+        allocations.push_front(hn);
+        return c;
+    }
+
+    int get_total_allocations() const {
+        return total_allocations;
     }
 
   private:
+    void free_node(HeapNode *);
+    std::unique_ptr<Slab> consSlab;
+
     void free_all();
+
+    int total_allocations = 0;
+    int total_frees = 0;
 
     void sweep();
 

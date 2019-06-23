@@ -44,7 +44,7 @@ TEST(Memory, CheckIfTypeIsSet) {
     } tests[] = {
         {m.alloc<Symbol>(""), AtomType::Symbol},
         {m.alloc<String>(""), AtomType::String},
-        {m.alloc<Cons>(Atom()), AtomType::Cons},
+        {m.alloc_cons(Atom(), nullptr), AtomType::Cons},
         {m.alloc<Lambda>(nullptr, nullptr, nullptr), AtomType::Lambda},
     };
 

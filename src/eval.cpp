@@ -5,8 +5,22 @@
 #include <iostream>
 #include <optional>
 #include <string>
+#include <sstream>
 
 namespace minou {
+
+std::string type_error(AtomType type, Atom value) {
+    std::stringstream s;
+    s << "type mismatch, expected: " << type;
+    s << " got: " << value.get_type();
+
+    return s.str();
+}
+
+#define CHECK_TYPE(type, value)                                                \
+    if ((value).get_type() != type) {                                          \
+        return type_error(type, value);                                        \
+    }
 
 using str = std::string;
 using std::cout;
@@ -20,10 +34,8 @@ class SetCont : public Continuation {
     SetCont(Continuation *k, Atom n, EnvPtr env) : n(n), env(env), k(k) {}
 
     EvalResult resume(Engine *engine, Atom a) override {
-        if (n.get_type() != AtomType::Symbol) {
-            return std::string("must be a symbol");
-        }
-        env->update(*((Symbol *)n.value), a);
+        CHECK_TYPE(AtomType::Symbol, n);
+        env->update(*n.symbol(), a);
         return k->resume(engine, a);
     }
 
@@ -38,10 +50,8 @@ class DefineCont : public Continuation {
     DefineCont(Continuation *k, Atom n, EnvPtr env) : n(n), env(env), k(k) {}
 
     EvalResult resume(Engine *engine, Atom a) override {
-        if (n.get_type() != AtomType::Symbol) {
-            return std::string("must be a symbol");
-        }
-        env->set(*((Symbol *)n.value), a);
+        CHECK_TYPE(AtomType::Symbol, n);
+        env->set(*n.symbol(), a);
         return k->resume(engine, a);
     }
 
@@ -147,7 +157,7 @@ class GatherCont : public Continuation {
     GatherCont(Continuation *k, Atom v) : k(k), v(v) {}
     EvalResult resume(Engine *engine, Atom a) override {
         if (a.is_list()) {
-            return k->resume(engine, engine->get_memory().alloc<Cons>(v, a.cons()));
+            return k->resume(engine, engine->get_memory().alloc_cons(v, a.cons()));
         }
         return std::string("gather invalid structure");
     }

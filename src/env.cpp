@@ -59,7 +59,7 @@ static Result<Atom> call_cc(Engine *engine, Cons *args, Env *env,
         return "call/cc invalid arity";
     }
 
-    auto x = engine->get_memory().alloc<Cons>(k, nullptr);
+    auto x = engine->get_memory().alloc_cons(k, nullptr);
 
     return args->car.lambda()->invoke(engine, x, env, k);
 }

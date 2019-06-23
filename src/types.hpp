@@ -8,6 +8,10 @@
 
 namespace minou {
 
+inline constexpr int bit_mask(int num_bits) {
+    return (1 << num_bits) - 1;
+}
+
 enum class AtomType {
     Number = 0,
     Cons,
@@ -19,6 +23,34 @@ enum class AtomType {
     Primitive,
     Continuation
 };
+
+inline const std::string atom_type_string(const AtomType a) {
+    switch(a) {
+    case AtomType::Number:
+        return "number";
+    case AtomType::Cons:
+        return "cons";
+    case AtomType::Symbol:
+        return "symbol";
+    case AtomType::String:
+        return "string";
+    case AtomType::Nil:
+        return "nil";
+    case AtomType::Boolean:
+        return "boolean";
+    case AtomType::Lambda:
+        return "lambda";
+    case AtomType::Primitive:
+        return "primitive";
+    case AtomType::Continuation:
+        return "continuation";
+    }
+}
+
+inline std::ostream &operator<<(std::ostream &os, const AtomType a) {
+    os << atom_type_string(a);
+    return os;
+}
 
 constexpr inline bool is_heap_type(const AtomType a) {
     switch (a) {
@@ -85,7 +117,8 @@ struct HeapNode {
     // 8-15 flags
     // 16-63 size
     uint64_t header;
-    char buff[];
+    // the actual thing
+    char     buff[];
 
     AtomType type() const {
         return AtomType(header & 0xff);
@@ -123,9 +156,10 @@ struct HeapNode {
 inline const int INTEGER = 1;
 inline const int BOOL    = 2;
 inline const int NIL     = 3;
+inline const int SYMBOL  = 4;
 
 inline const int TAG_BITS  = 3;
-inline const int TAG_MASK  = ((1 << TAG_BITS) - 1);
+inline const int TAG_MASK  = bit_mask(3);
 
 struct Atom {
     Atom() : value(NIL) {}
