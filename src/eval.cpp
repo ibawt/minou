@@ -324,8 +324,6 @@ Result<Atom> eval(Engine *engine, Atom a, EnvPtr env, Continuation *k) {
         }
 
         if (a.cons()->car.get_type() == AtomType::Symbol) {
-
-            // assert(a.cons()->car.symbol());
             auto sym = a.cons()->car.symbol();
 
             // IF
@@ -333,15 +331,15 @@ Result<Atom> eval(Engine *engine, Atom a, EnvPtr env, Continuation *k) {
                 if (!has_at_least_n(a.cons(), 3)) {
                     return std::string("invalid list structure for if");
                 }
-                IfCont ifCont(k, caddr(a.cons()), cadddr(a.cons()), env);
-                return eval(engine, a.cons()->cdr->car, env, &ifCont);
+                auto ifCont = engine->get_memory().alloc<IfCont>(k, caddr(a.cons()), cadddr(a.cons()), env);
+                return eval(engine, a.cons()->cdr->car, env, ifCont);
             } else if (sym == "define") {
-                DefineCont sc(k, a.cons()->cdr->car, env);
-                return eval(engine, a.cons()->cdr->cdr->car, env, &sc);
+                auto sc = engine->get_memory().alloc<DefineCont>(k, a.cons()->cdr->car, env);
+                return eval(engine, a.cons()->cdr->cdr->car, env, sc);
             } else if (sym == "set!") {
-                SetCont sc(k, a.cons()->cdr->car, env);
+                auto sc = engine->get_memory().alloc<SetCont>(k, a.cons()->cdr->car, env);
 
-                return eval(engine, a.cons()->cdr->cdr->car, env, &sc);
+                return eval(engine, a.cons()->cdr->cdr->car, env, sc);
             }
             // QUOTE
             else if (sym == "quote") {

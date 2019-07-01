@@ -16,8 +16,7 @@ char *Slab::get() {
             return h->buffer;
         }
         if ((char *)h > buffer + buffer_len) {
-            h = (SlabNode*)buffer;
-            continue;
+            assert(false);
         }
         h = (SlabNode *)((char *)h + (sizeof(SlabNode) + element_size));
     }
