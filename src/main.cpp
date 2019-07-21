@@ -1,4 +1,4 @@
-#include <iostream>
+                                                \
 #include <readline/readline.h>
 
 #include "base.hpp"
@@ -6,13 +6,15 @@
 #include "main.hpp"
 #include "minou.hpp"
 #include "parser.hpp"
+#include <string>
+#include <cstdlib>
+#include "vm.hpp"
+#include "compiler.hpp"
 
 using namespace minou;
-using std::cout;
-using std::endl;
 
 int main() {
-    Engine engine;
+    VM vm;
 
     for (;;) {
         auto line = readline(">");
@@ -21,18 +23,18 @@ int main() {
             break;
         }
 
-        auto result = engine.eval(line);
+        auto result = vm.run(line);
 
         if (!is_error(result)) {
-            cout << get_value(result).to_string() << endl;
+            fmt::print("-> {}\n", get_value(result).to_string());
         } else {
-            cout << "ERR: " << get_error(result) << endl;
+            fmt::print("ERR: {}\n", get_error(result));
         }
 
         free(line);
     }
 
-    cout << "Bye!" << endl;
+    fmt::print("Bye!\n");
 
     return 0;
 }

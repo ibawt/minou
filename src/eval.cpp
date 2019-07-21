@@ -2,19 +2,13 @@
 #include "base.hpp"
 #include "engine.hpp"
 #include "env.hpp"
-#include <iostream>
 #include <optional>
 #include <string>
-#include <sstream>
 
 namespace minou {
 
 std::string type_error(AtomType type, Atom value) {
-    std::stringstream s;
-    s << "type mismatch, expected: " << type;
-    s << " got: " << value.get_type();
-
-    return s.str();
+    return "type mismatch";
 }
 
 #define CHECK_TYPE(type, value)                                                \
@@ -23,9 +17,6 @@ std::string type_error(AtomType type, Atom value) {
     }
 
 using str = std::string;
-using std::cout;
-using std::endl;
-
 EvalResult eval_args(Engine *engine, Atom e, EnvPtr, Continuation *k);
 EvalResult eval_begin(Engine *engine, Atom a, EnvPtr, Continuation *k);
 
@@ -279,27 +270,6 @@ class UnwindProtect : public Continuation {
 EvalResult eval_quote(Engine *engine, Atom a, Continuation *k) {
     return k->resume(engine, a);
 }
-
-bool has_at_least_n(Cons *cons, int desired) {
-    for (int i = 0;; ++i) {
-        if (!cons) {
-            return i >= desired;
-        }
-        if (i >= desired) {
-            return true;
-        }
-        cons = cons->cdr;
-        ++i;
-    }
-}
-
-Atom car(Cons *cons) { return cons->car; }
-
-Atom cadr(Cons *cons) { return cons->cdr->car; }
-
-Atom caddr(Cons *cons) { return cons->cdr->cdr->car; }
-
-Atom cadddr(Cons *cons) { return cons->cdr->cdr->cdr->car; }
 
 EvalResult eval_application(Engine *engine, Atom e, Atom ee, EnvPtr env,
                             Continuation *k) {

@@ -7,6 +7,7 @@
 #include <variant>
 
 #include "symbol_intern.hpp"
+#include "fmt/format.h"
 
 namespace minou {
 
@@ -21,9 +22,10 @@ enum class AtomType {
     String,
     Nil,
     Boolean,
-    Lambda,
-    Primitive,
-    Continuation
+    Lambda, // in ast form
+    Primitive, // for native implemention
+    Continuation, // eventual call/cc
+    Function, // compiled function
 };
 
 inline const std::string atom_type_string(const AtomType a) {
@@ -46,12 +48,9 @@ inline const std::string atom_type_string(const AtomType a) {
         return "primitive";
     case AtomType::Continuation:
         return "continuation";
+    case AtomType::Function:
+        return "function";
     }
-}
-
-inline std::ostream &operator<<(std::ostream &os, const AtomType a) {
-    os << atom_type_string(a);
-    return os;
 }
 
 constexpr inline bool is_heap_type(const AtomType a) {
@@ -97,11 +96,6 @@ class Symbol {
     const int interned_value;
 };
 
-inline std::ostream &operator<<(std::ostream &os, const Symbol &a) {
-    os << a.string();
-    return os;
-}
-
 struct Number {
     Number(int64_t i) : value(i) {}
     union {
@@ -116,6 +110,7 @@ struct Cons;
 class Lambda;
 class Primitive;
 class Continuation;
+class Function;
 
 inline const int USED   = 1;
 inline const int LOCKED = 2;
@@ -171,6 +166,8 @@ inline const int SYMBOL  = 4;
 inline const int TAG_BITS  = 3;
 inline const int TAG_MASK  = bit_mask(3);
 
+class Procedure;
+
 struct Atom {
     Atom() : value(NIL) {}
     Atom(int64_t i) : value(INTEGER | (i << TAG_BITS)) {}
@@ -189,6 +186,7 @@ struct Atom {
     Atom(Continuation *c) : value((intptr_t)c) {
         set_type(AtomType::Continuation);
     }
+    Atom(Function *f) : value((intptr_t)f) { set_type(AtomType::Function); }
 
     uintptr_t value;
 
@@ -231,6 +229,11 @@ struct Atom {
     }
 
     int64_t integer() const { return value >> TAG_BITS; }
+
+    Procedure* procedure() const {
+        assert( get_type() == AtomType::Primitive || get_type() == AtomType::Lambda);
+        return (Procedure*)value;
+    }
 
     Cons *cons() const {
         if(get_type() == AtomType::Nil) {
@@ -278,7 +281,7 @@ struct Atom {
             return value == other.value;
         }
     }
-
+    bool is_false() const { return get_type() == AtomType::Boolean && !boolean();}
     std::string to_string() const;
     bool is_nil() const { return get_type() == AtomType::Nil; }
     bool is_list() const { return get_type() == AtomType::Cons || get_type() == AtomType::Nil; }
@@ -287,21 +290,94 @@ struct Atom {
 
 static_assert(sizeof(Atom)== 8);
 
-std::ostream &operator<<(std::ostream &os, const Atom &a);
-
 struct Cons {
     Cons(Atom car, Cons *cdr = nullptr) : car(car), cdr(cdr) {}
     Atom car;
     Cons *cdr;
 
-    void for_each(std::function<void(Cons *)> f) {
-        Cons *c = cdr;
-        for (;;) {
-            if (!c)
-                return;
-            f(c);
-            c = c->cdr;
+    class iterator {
+        Cons *node;
+    public:
+        iterator(Cons* c) : node(c) {}
+
+        using difference_type = ptrdiff_t;
+        using value_type = Cons*;
+        using pointer = const Cons**;
+        using reference = const Cons*&;
+        using iterator_category = std::forward_iterator_tag;
+
+        iterator& operator++() {
+            node = node->cdr;
+            return *this;
         }
+        iterator operator++(int) {
+            auto r = *this;
+            ++(*this);
+            return r;
+        }
+
+        bool operator==(iterator other) const {
+            return node == other.node;
+        }
+
+        bool operator!=(iterator other) const {
+            return node != other.node;
+        }
+
+        Cons* operator*() { return node; }
+        Cons* operator->() { return node; }
+    };
+
+    class const_iterator {
+        const Cons* node;
+    public:
+        const_iterator(const Cons* c) : node(c) {}
+
+        using difference_type = ptrdiff_t;
+        using value_type = const Cons *;
+        using pointer = const Cons **;
+        using reference = const Cons *&;
+        using iterator_category = std::forward_iterator_tag;
+
+        const_iterator &operator++() {
+            node = node->cdr;
+            return *this;
+        }
+        const_iterator operator++(int) {
+            auto r = *this;
+            ++(*this);
+            return r;
+        }
+
+        bool operator==(const_iterator other) const { return node == other.node; }
+
+        bool operator!=(const_iterator other) const { return node != other.node; }
+
+        const Cons *operator*() { return node; }
+        const Cons *operator->() { return node; }
+    };
+
+    const_iterator begin() const {
+        return const_iterator(this);
+    }
+
+    const_iterator end() const {
+        return const_iterator(nullptr);
+    }
+
+    iterator begin() {
+        return iterator(this);
+    }
+
+    iterator end() {
+        return iterator(nullptr);
+    }
+
+    // O(n)
+    int length() const {
+        int sum = 0;
+        for(auto i : *this) { ++sum; }
+        return sum;
     }
 };
 
@@ -316,6 +392,41 @@ inline bool has_only_n(const Cons *c, const int n) {
     }
     return i == n;
 }
+
+inline bool has_at_least_n(Cons *cons, int desired) {
+    for (int i = 0;; ++i) {
+        if (!cons) {
+            return i >= desired;
+        }
+        if (i >= desired) {
+            return true;
+        }
+        cons = cons->cdr;
+        ++i;
+    }
+}
+
+inline Atom car(Cons *cons) { return cons->car; }
+
+inline Atom cadr(Cons *cons) { return cons->cdr->car; }
+
+inline Atom caddr(Cons *cons) { return cons->cdr->cdr->car; }
+
+inline Atom cadddr(Cons *cons) { return cons->cdr->cdr->cdr->car; }
+
 } // namespace minou
 
+namespace fmt {
+template <> struct formatter<minou::Atom> {
+    template <typename ParseContext> constexpr auto parse(ParseContext &ctx) {
+        return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const minou::Atom &a, FormatContext &ctx) {
+        return format_to(ctx.begin(), "{}", a.to_string());
+    }
+};
+
+} // namespace ::fmt
 #endif

@@ -5,10 +5,14 @@
 
 namespace minou {
 
-EvalResult Engine::eval(const std::string_view &s) {
+Result<Atom> Engine::parse(const std::string_view &s) {
+    return ::minou::parse(memory, s);
+}
+
+Result<Atom> Engine::eval(const std::string_view &s) {
     memory.mark_and_sweep(global.get());
 
-    auto atom = parse(memory, s);
+    auto atom = ::minou::parse(memory, s);
 
     if (is_error(atom)) {
         return atom;

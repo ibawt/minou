@@ -1,6 +1,8 @@
 #ifndef BASE_H_
 #define BASE_H_
 
+#include "fmt/format.h"
+
 #include <string>
 #include <variant>
 
@@ -19,10 +21,6 @@ class Error {
     const std::string message;
 };
 
-inline std::ostream &operator<<(std::ostream &os, const Error &e) {
-    os << e.get_message();
-    return os;
-}
 
 template <typename T> inline bool is_error(std::variant<T, const Error> v) {
     return std::holds_alternative<const Error>(v);
@@ -51,4 +49,19 @@ template <typename T> T get_value(Result<T> result) {
 
 } // namespace minou
 
+namespace fmt {
+template <> struct formatter<minou::Error> {
+    template <typename ParseContext> constexpr auto parse(ParseContext &ctx) {
+        return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const minou::Error &a, FormatContext &ctx) {
+        return format_to(ctx.begin(), "{}", a.get_message());
+    }
+};
+
+}
+
 #endif
+

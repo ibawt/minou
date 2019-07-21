@@ -4,8 +4,25 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include "vm.hpp"
 
 using namespace minou;
+
+TEST(Cons, Iterator) {
+    Memory m;
+
+    auto l = m.make_list({Atom(0L), Atom(1)});
+
+    std::vector<Cons*> list;
+    for(const auto x : *l) {
+        list.push_back(x);
+    }
+
+    EXPECT_EQ(2, list.size());
+    EXPECT_EQ(Atom(0L), list[0]->car);
+    EXPECT_EQ(Atom(1L), list[1]->car);
+    EXPECT_EQ(2, l->length());
+}
 
 TEST(HeapNode, Headers) {
     HeapNode n(5);
@@ -110,6 +127,37 @@ struct testcase {
     Atom expected;
 };
 
+class VMTest: public ::testing::Test {
+protected:
+    void SetUp() override {
+        vm = std::make_unique<VM>();
+    }
+
+    void run(const std::vector<testcase>&tests) {
+        for (const auto &t : tests) {
+            const auto result = vm->run(t.input);
+
+            ASSERT_FALSE(is_error(result));
+            const auto aa = std::get<Atom>(result);
+            EXPECT_EQ(aa, t.expected) << t.input;
+        }
+    }
+    std::unique_ptr<VM> vm;
+};
+
+TEST_F(VMTest, Simple) {
+    run({{"5", Atom(5L)},
+         {"(+ 1 2)", Atom(3L)},
+         {"\"foo\"", vm->get_memory().alloc<String>("foo")},
+        });
+}
+
+TEST_F(VMTest, Lambda) {
+    run({
+        {"((lambda (n) n) 1)", Atom(1L)},
+    });
+}
+
 class EvalTest : public ::testing::Test {
   protected:
     void SetUp() override { engine = std::make_unique<Engine>(); }
@@ -117,7 +165,7 @@ class EvalTest : public ::testing::Test {
         for (const auto &t : tests) {
             const auto result = engine->eval(t.input);
 
-            ASSERT_FALSE(is_error(result)) << get_error(result);
+            ASSERT_FALSE(is_error(result));
             const auto aa = std::get<Atom>(result);
             EXPECT_EQ(aa, t.expected) << t.input;
         }

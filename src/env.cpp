@@ -12,15 +12,16 @@ static EvalResult add(Engine *engine, Cons *args, EnvPtr env, Continuation *k) {
     assert(k);
 
     int64_t sum = 0;
-    for (; args; args = args->cdr) {
-        if (args->car.get_type() != AtomType::Number) {
+    for (auto i : *args) {
+        if (i->car.get_type() != AtomType::Number) {
             return std::string("invalid type for add");
         }
-        sum += args->car.integer();
+        sum += i->car.integer();
     }
 
     return k->resume(engine, sum);
 }
+
 static EvalResult subtraction(Engine *engine, Cons *args, EnvPtr env,
                               Continuation *k) {
     assert(env);

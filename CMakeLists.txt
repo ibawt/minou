@@ -32,6 +32,8 @@ if (CMAKE_VERSION VERSION_LESS 2.8.11)
   include_directories("${gtest_SOURCE_DIR}/include")
 endif()
 
+add_subdirectory(vendor/fmt)
+
 set (main src/main.cpp)
 
 set(files
@@ -53,16 +55,21 @@ set(files
   src/eval.hpp
   src/symbol_intern.hpp
   src/symbol_interner.cpp
+  src/bytecode.hpp
+  src/vm.hpp
+  src/vm.cpp
+  src/compiler.hpp
+  src/compiler.cpp
   )
 
 add_executable(minou ${main} ${files})
 
 target_compile_features(minou PRIVATE cxx_std_17)
-target_link_libraries(minou readline)
+target_link_libraries(minou readline fmt)
 
 # # Add test cpp file
 add_executable( minou-tests t/test_main.cpp ${files})
 # # Link test executable against gtest & gtest_main
 target_compile_features(minou-tests PRIVATE cxx_std_17)
-target_link_libraries(minou-tests gtest gtest_main)
-include_directories("src/")
+target_link_libraries(minou-tests gtest gtest_main fmt)
+include_directories("src/" "vendor/fmt/include")

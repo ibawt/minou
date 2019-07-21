@@ -10,6 +10,7 @@
 #include "env.hpp"
 #include "memory.hpp"
 #include "types.hpp"
+#include <vector>
 
 namespace minou {
 
@@ -59,6 +60,9 @@ class Lambda : public Procedure {
     Lambda(Cons *variables, Cons *body, EnvPtr env)
         : variables(variables), body(body), env(env) {}
 
+    Lambda(Cons *variables, Cons *body, EnvPtr env, std::vector<uint8_t> compiled_body)
+        : variables(variables), body(body), env(env) , compiled_body(compiled_body) {}
+
     EvalResult invoke(Engine *, Cons *args, EnvPtr env,
                       Continuation *k) override;
 
@@ -69,7 +73,14 @@ class Lambda : public Procedure {
         mark(env);
     }
 
+    const Cons* get_arguments() {
+        return variables;
+    }
+
+    const std::vector<uint8_t>& get_compiled_body() const {  return compiled_body; }
+
   private:
+    std::vector<uint8_t> compiled_body;
     Cons *variables;
     Cons *body;
     EnvPtr env;

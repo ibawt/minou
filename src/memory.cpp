@@ -2,13 +2,9 @@
 #include "env.hpp"
 #include "eval.hpp"
 #include <cstdlib>
-#include <iostream>
 #include <string>
 
 namespace minou {
-
-using std::cout;
-using std::endl;
 
 void Memory::free_all() {
     for (auto h : allocations) {
@@ -23,7 +19,7 @@ void mark_atom(Atom a) {
         visit((char *)a.value);
         break;
     case AtomType::Cons:
-        for (auto c = a.cons(); c; c = c->cdr) {
+        for (auto c : *a.cons()) {
             if (!has_visited((char *)c)) {
                 visit((char *)c);
                 mark_atom(c->car);

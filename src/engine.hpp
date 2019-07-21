@@ -16,14 +16,19 @@ class Engine {
         global->clear();
         memory.mark_and_sweep(global.get());
     }
-    EvalResult eval(const std::string_view &s);
-    EvalResult eval(const char *s) { return eval(std::string_view(s)); }
+    Result<Atom> eval(const std::string_view &s);
+    Result<Atom> eval(const char *s) { return eval(std::string_view(s)); }
+    Result<Atom> parse(const std::string_view&s);
 
     // const SymbolInterner &get_interner() const { return syms; }
     SymbolInterner &get_interner() { return syms; }
 
     void gc() { memory.mark_and_sweep(global.get()); }
     Memory &get_memory() { return memory; }
+
+    Env* get_env() {
+        return global.get();
+    }
 
   private:
     SymbolInterner syms;

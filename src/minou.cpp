@@ -2,14 +2,13 @@
 #include <assert.h>
 #include <sstream>
 #include <string>
-#include <iostream>
+#include <vector>
 
 namespace minou {
-using std::cout;
-using std::endl;
 
-static void print_list(std::stringstream &s, const Atom &a) {
+static void print_list(std::vector<char> out, const Atom &a) {
     assert(a.get_type() == AtomType::Cons);
+    auto it = std::back_inserter(out);
     if(a.is_nil())
         return;
     const Cons *cur = a.cons();
@@ -20,20 +19,15 @@ static void print_list(std::stringstream &s, const Atom &a) {
     for (;;) {
         assert(cur);
 
-        s << cur->car.to_string();
+        fmt::format_to(it, "{}", cur->car.to_string());
 
         if (!cur->cdr) {
             return;
         } else {
-            s << " ";
+            fmt::format_to(it, " ");
         }
         cur = cur->cdr;
     }
-}
-
-std::ostream &operator<<(std::ostream &os, const Atom &a) {
-    os << a.to_string();
-    return os;
 }
 
 bool equalsp(const Atom &a, const Atom &b) {
@@ -71,39 +65,43 @@ bool equalsp(const Atom &a, const Atom &b) {
 }
 
 std::string Atom::to_string() const {
+    std::vector<char> out;
+    auto it = std::back_inserter(out);
     std::stringstream s;
 
     switch (get_type()) {
     case AtomType::Number:
-        s << integer();
+        fmt::format_to(it, "{}", integer());
         break;
     case AtomType::Cons:
-        s << "(";
-        print_list(s, *this);
-        s << ")";
+        fmt::format_to(it, "(");
+        print_list(out, *this);
+        fmt::format_to(it, ")");
         break;
     case AtomType::Symbol:
-        s << symbol();
+        fmt::format_to(it, "{}", symbol().string());
         break;
     case AtomType::String:
         assert(string());
-        s << "\"" << *string() << "\"";
+        fmt::format_to(it, "\"{}\"", *string());
         break;
     case AtomType::Lambda:
-        s << "lambda()";
+        fmt::format_to(it, "lambda()");
         break;
     case AtomType::Primitive:
-        s << "primitive()";
+        fmt::format_to(it, "primitive");
         break;
     case AtomType::Nil:
-        s << "nil";
+        fmt::format_to(it, "nil");
         break;
     case AtomType::Boolean:
-        s << (boolean() ? "#t" : "#f");
+        fmt::format_to(it, "{}", (boolean() ? "#t" : "#f"));
+        break;
     case AtomType::Continuation:
-        s << "continuation()";
+        fmt::format_to(it, "continuation");
+        break;
     }
-    return s.str();
+    return std::string(out.data(), out.size());
 }
 
 } // namespace minou
