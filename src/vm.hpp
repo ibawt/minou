@@ -26,6 +26,7 @@ private:
     word pop() {
         auto i = stack.back();
         stack.pop_back();
+        // fmt::print("pop: 0x{:x}\n", i);
         return i;
     }
 
@@ -51,6 +52,7 @@ private:
     }
 
     void push(word i) {
+        // fmt::print("push: 0x{:x}\n", i);
         stack.push_back(i);
     }
 

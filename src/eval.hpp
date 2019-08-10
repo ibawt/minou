@@ -73,11 +73,15 @@ class Lambda : public Procedure {
         mark(env);
     }
 
-    const Cons* get_arguments() {
+    Cons* get_arguments() const {
         return variables;
     }
 
+    Cons* get_body() const { return body; }
+
     const std::vector<uint8_t>& get_compiled_body() const {  return compiled_body; }
+
+    Env* get_env() const { return env; }
 
   private:
     std::vector<uint8_t> compiled_body;
@@ -106,5 +110,19 @@ class Primitive : public Procedure {
 
 EvalResult eval(Engine *, Atom a, EnvPtr, Continuation *);
 } // namespace minou
+
+namespace fmt {
+template <> struct formatter<minou::Lambda> {
+    template <typename ParseContext> constexpr auto parse(ParseContext &ctx) {
+        return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const minou::Lambda &a, FormatContext &ctx) {
+        return format_to(ctx.begin(), "(lambda {} {})", minou::Atom(a.get_arguments()),
+                         minou::Atom(a.get_body()));
+    }
+};
+} // namespace fmt
 
 #endif

@@ -27,18 +27,6 @@ template <typename T> inline bool is_error(std::variant<T, const Error> v) {
 }
 template <typename T> using Result = std::variant<T, const Error>;
 
-// TODO: figure out why this doesn't work on OSX
-// template<typename T>
-// inline std::ostream& operator<<(std::ostream& os, const Result<T>& r)
-// {
-//     if (is_error(r)) {
-//         os << "ERROR: " << get_error(r);
-//     } else {
-//         os << get_value(r);
-//     }
-//     return os;
-// }
-
 template <typename T> const Error get_error(Result<T> result) {
     return std::get<const Error>(result);
 }
@@ -57,7 +45,7 @@ template <> struct formatter<minou::Error> {
 
     template <typename FormatContext>
     auto format(const minou::Error &a, FormatContext &ctx) {
-        return format_to(ctx.begin(), "{}", a.get_message());
+        return format_to(ctx.begin(), "ERROR: {}", a.get_message());
     }
 };
 

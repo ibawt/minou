@@ -11,7 +11,6 @@ namespace minou {
 
 class Engine {
   public:
-    Engine() { global = std::make_unique<Env>(this); }
     ~Engine() {
         global->clear();
         memory.mark_and_sweep(global.get());
@@ -33,7 +32,7 @@ class Engine {
   private:
     SymbolInterner syms;
     Memory memory;
-    std::unique_ptr<Env> global;
+    std::unique_ptr<Env> global = std::make_unique<Env>(this);
 };
 
 } // namespace minou

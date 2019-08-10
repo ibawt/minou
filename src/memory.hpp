@@ -11,7 +11,6 @@
 #include <string.h>
 #include <vector>
 #include "slab.hpp"
-#include <string>
 
 namespace minou {
 
@@ -82,7 +81,7 @@ class Memory {
         Cons *c = nullptr;
         Cons *head = nullptr;
 
-        for (const auto &a : list) {
+        for (const auto a : list) {
             auto nc = alloc_cons(a, nullptr);
 
             if (!c) {

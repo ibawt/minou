@@ -6,7 +6,6 @@
 #include "main.hpp"
 #include "minou.hpp"
 #include "parser.hpp"
-#include <string>
 #include <cstdlib>
 #include "vm.hpp"
 #include "compiler.hpp"
@@ -26,7 +25,7 @@ int main() {
         auto result = vm.run(line);
 
         if (!is_error(result)) {
-            fmt::print("-> {}\n", get_value(result).to_string());
+            fmt::print("-> {}\n", get_value(result));
         } else {
             fmt::print("ERR: {}\n", get_error(result));
         }

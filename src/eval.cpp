@@ -133,7 +133,7 @@ class ApplyCont : public Continuation {
         case AtomType::Continuation:
             return f.continuation()->invoke(engine, a.cons(), env, k);
         default:
-            return str("invalid type for apply: " + f.to_string());
+            return fmt::format("invalid type for apply: {}", f);
         }
     }
 
@@ -167,7 +167,7 @@ class ArgumentCont : public Continuation {
             GatherCont gc(k, a);
             return eval_args(engine, e.cons()->cdr, env, &gc);
         }
-        return str("arg invalid structure: " + e.to_string());
+        return fmt::format("arg invalid structure: {}", e);
     }
 
   private:

@@ -58,7 +58,7 @@ void print_instruction_stream(uint8_t *s, int len) {
 
         auto len = opcode_length(opcode);
 
-        fmt::format("[{}] ", opcode);
+        fmt::print("[{}] ", opcode);
 
         if (len == 8) {
             auto arg = *(reinterpret_cast<word *>(s + i + 1));
@@ -66,16 +66,16 @@ void print_instruction_stream(uint8_t *s, int len) {
             switch (opcode) {
             case OpCode::PUSH: {
                 Atom a = *((Atom *)&arg);
-                fmt::format("({})", a);
+                fmt::print("({})", a);
             } break;
             default:
-                fmt::format("({})", arg);
+                fmt::print("({})", arg);
             }
         } else if (len == 1) {
-            fmt::format("({})", (int)s[i+1]);
+            fmt::print("({})", (int)s[i+1]);
         }
 
-        fmt::format("\n");
+        fmt::print("\n");
         i += 1 + len;
     }
 }
@@ -95,7 +95,9 @@ Result<Atom> VM::run(std::string_view s) {
     auto i = std::get<std::vector<uint8_t>>(inst);
     i.push_back((uint8_t)OpCode::EXIT);
 
+    fmt::print("START\n");
     print_instruction_stream(i.data(), i.size());
+    fmt::print("END\n");
 
     this->inst = i.data();
     pc = 0;
@@ -118,16 +120,15 @@ Result<Atom> VM::run() {
         case OpCode::JUMP_IFNOT: {
             auto pred = pop_atom();
             auto pos = read_instruction<word>();
-            // if boolean and is #f
-            if (pred.get_type() == AtomType::Boolean && !pred.boolean()) {
+            if (pred.is_false()) {
                 pc = pos;
                 continue;
             }
         } break;
         case OpCode::INVOKE: {
             auto num_args = read_instruction<uint8_t>();
-
             auto a = pop_atom();
+
             if (a.get_type() == AtomType::Primitive) {
                 auto p = a.primitive();
                 BottomCont bc;
@@ -145,22 +146,33 @@ Result<Atom> VM::run() {
             } else {
                 auto l = a.lambda();
                 auto c = l->get_arguments();
-
+                Env *newEnv = new Env(l->get_env());
+                auto vars = l->get_arguments();
                 for (int i = 0; i < num_args; ++i) {
                     auto arg_value = pop_atom();
+                    newEnv->set(vars->car.symbol(), arg_value);
+                    vars = vars->cdr;
                 }
-
                 push((word)inst);
-                push(pc + opcode_length(opcode));
+                push(pc);
                 push((word)env);
 
                 inst = (uint8_t *)l->get_compiled_body().data();
                 pc = 0;
+                env = newEnv;
+
                 continue;
             }
         } break;
+        case OpCode::POP:
+            if( stack.empty()) {
+                return "stack underrun";
+            }
+            stack.pop_back();
+            break;
         case OpCode::LOAD: {
             auto sym = pop_atom();
+            fmt::print("LOAD -> {}\n", sym);
 
             auto v = env->lookup(sym.symbol());
             if (v.has_value()) {
@@ -169,6 +181,7 @@ Result<Atom> VM::run() {
         } break;
         case OpCode::RET: {
             auto return_value = pop_atom();
+            fmt::print("RET: {}\n", return_value);
 
             env = (Env *)pop();
             pc = pop();

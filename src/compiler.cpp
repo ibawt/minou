@@ -7,32 +7,15 @@ namespace minou {
 
 #define TRY(x,y) auto x = y; if(is_error(x)) { return x; }
 
-Atom pop(const uint8_t *s) {
-    Atom a;
-
-    a.value = s[0] | (s[1] << 8) | (s[2] << 16) |
-        (s[3] << 24) |  ((intptr_t)s[4] << 32) | ((intptr_t)s[5] << 40)
-        | ((intptr_t)s[6] << 48) || ((intptr_t)s[7] << 56);
-
-    return a;
-}
-
-void push(Atom a, uint8_t *buffer) {
-    buffer[0] = a.value & 0xff;
-    buffer[1] = (a.value >> 8) & 0xff;
-    buffer[2] = (a.value >> 16) & 0xff;
-    buffer[3] = (a.value >> 24) & 0xff;
-    buffer[4] = (a.value >> 32) & 0xff;
-    buffer[5] = (a.value >> 40) & 0xff;
-    buffer[6] = (a.value >> 48) & 0xff;
-    buffer[7] = (a.value >> 56) & 0xff;
-}
-
-
 struct Compiler {
     std::vector<uint8_t> buffer;
 
+    void push_opcode(OpCode op) {
+        buffer.push_back(static_cast<uint8_t>(op));
+    }
+
     Result<std::monostate> compile(Engine *engine, Atom a, Env *env) {
+        // fmt::print("compiling: {}\n", a);
         switch (a.get_type()) {
         case AtomType::Cons:
             if (!a.cons()) {
@@ -49,7 +32,7 @@ struct Compiler {
                     if (is_error(p)) {
                         return p;
                     }
-                    buffer.push_back((uint8_t)OpCode::JUMP_IFNOT);
+                    push_opcode(OpCode::JUMP_IFNOT);
                     push_value(0);
                     auto ejp = buffer.size() - 8;
 
@@ -63,7 +46,7 @@ struct Compiler {
                         set_value(ejp, buffer.size());
                     } break; // no else
                     case 3: {
-                        buffer.push_back((uint8_t)OpCode::JUMP);
+                        push_opcode(OpCode::JUMP);
                         push_value(0);
                         auto out_jmp = buffer.size() - 8;
 
@@ -80,15 +63,30 @@ struct Compiler {
                     }
                 } else if(sym == "lambda") {
                     Compiler c;
-                    auto e = c.compile(engine, a.cons()->cdr->cdr, env);
+
+                    Cons *body = engine->get_memory().alloc_cons(Symbol("begin"), a.cons()->cdr->cdr);
+
+                    auto e = c.compile(engine, body, env);
                     if( is_error(e)) {
                         return e;
                     }
-                    c.buffer.push_back((uint8_t)OpCode::RET);
+                    c.push_opcode(OpCode::RET);
 
-                    auto l = engine->get_memory().alloc<Lambda>(a.cons()->cdr, a.cons()->cdr->cdr, env, c.buffer);
+                    auto l = engine->get_memory().alloc<Lambda>(a.cons()->cdr->car.cons(), body, env, std::move(c.buffer));
                     push_value(l);
-                } else {
+
+                } else if(sym == "begin") {
+                    for( Cons *c = a.cons()->cdr ; c ; c = c->cdr ) {
+                        auto e = compile(engine, c->car, env);
+                        if( is_error(e)) {
+                            return e;
+                        }
+                        if( c->cdr ) {
+                            buffer.push_back((uint8_t)OpCode::POP);
+                        }
+                    }
+                }
+                else {
                     int i = 0;
                     for (auto c : *a.cons()->cdr) {
                         auto e = compile(engine, car(c), env);
@@ -143,10 +141,6 @@ struct Compiler {
         return {};
     }
 
-    void push_opcode(OpCode o) {
-        buffer.push_back((uint8_t)o);
-    }
-
     void set_value(int pos, intptr_t value) {
         *((intptr_t *) (&buffer[pos])) = value;
     }
@@ -164,7 +158,7 @@ struct Compiler {
         for( auto i = 0 ; i < 8 ; ++i ) {
             buffer.push_back(0);
         }
-        push(a, &buffer[i]);
+        set_value( i, a.value);
     }
 };
 

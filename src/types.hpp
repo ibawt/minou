@@ -15,7 +15,7 @@ inline constexpr int bit_mask(int num_bits) {
     return (1 << num_bits) - 1;
 }
 
-enum class AtomType {
+enum class AtomType : uint8_t {
     Number = 0,
     Cons,
     Symbol,
@@ -242,6 +242,7 @@ struct Atom {
         assert(get_type() == AtomType::Cons);
         return (Cons *)value;
     }
+
     bool boolean() const {
         assert(get_type() == AtomType::Boolean);
         return value >> TAG_BITS;
@@ -281,8 +282,8 @@ struct Atom {
             return value == other.value;
         }
     }
+
     bool is_false() const { return get_type() == AtomType::Boolean && !boolean();}
-    std::string to_string() const;
     bool is_nil() const { return get_type() == AtomType::Nil; }
     bool is_list() const { return get_type() == AtomType::Cons || get_type() == AtomType::Nil; }
     bool is_pair() const { return get_type() == AtomType::Cons && value != 0; }
@@ -373,6 +374,10 @@ struct Cons {
         return iterator(nullptr);
     }
 
+    bool is_end() const {
+        return cdr;
+    }
+
     // O(n)
     int length() const {
         int sum = 0;
@@ -424,9 +429,58 @@ template <> struct formatter<minou::Atom> {
 
     template <typename FormatContext>
     auto format(const minou::Atom &a, FormatContext &ctx) {
-        return format_to(ctx.begin(), "{}", a.to_string());
+           switch (a.get_type()) {
+           case minou::AtomType::Number:
+               return format_to(ctx.begin(), "{}", a.integer());
+               break;
+           case minou::AtomType::Cons: {
+               auto it = ctx.out();
+               it = fmt::format_to(it, "(");
+               for( auto c : *a.cons()) {
+                   it = fmt::format_to(it, "{}", c->car);
+                   if( c->cdr ) {
+                       it = fmt::format_to(it, " ");
+                   }
+               }
+               return format_to(it, ")");
+           } break;
+           case minou::AtomType::Symbol:
+               return format_to(ctx.begin(), a.symbol().string());
+               break;
+           case minou::AtomType::String:
+               return format_to(ctx.begin(), *a.string());
+               break;
+           case minou::AtomType::Lambda: {
+               return format_to(ctx.begin(), "{}", *a.lambda());
+           }
+           case minou::AtomType::Primitive:
+               return format_to(ctx.begin(), "primitive");
+           case minou::AtomType::Nil:
+               return format_to(ctx.begin(), "nil");
+               break;
+           case minou::AtomType::Boolean:
+               return format_to(ctx.begin(), (a.boolean() ? "#t" : "#f"));
+           case minou::AtomType::Continuation:
+               return format_to(ctx.begin(), "continuation");
+           case minou::AtomType::Function:
+               return format_to(ctx.begin(), "function");
+           }
+
+           return format_to(ctx.begin(), "invalid type");
     }
 };
 
-} // namespace ::fmt
+template <> struct formatter<minou::Cons*> {
+    template <typename ParseContext> constexpr auto parse(ParseContext &ctx) {
+        return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const minou::Cons *c, FormatContext &ctx) {
+        return format_to(ctx.begin(), "{}", minou::Atom(c));
+
+    }
+};
+} // namespace fmt
+
 #endif

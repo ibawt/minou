@@ -84,7 +84,7 @@ class Env {
             }
 
             if (k.get_type() != AtomType::Symbol) {
-                return "invalid argument type:" + k.cons()->car.to_string();
+                return fmt::format("invalid argument type: {}", k.cons()->car);
             }
 
             set(k.symbol(), v);
