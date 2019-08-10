@@ -122,7 +122,7 @@ struct Compiler {
                     return e;
                 }
 
-                buffer.push_back((uint8_t)OpCode::INVOKE);
+                push_opcode(OpCode::INVOKE);
                 buffer.push_back(a.cons()->length() - 1);
 
                 if (i > 255) {

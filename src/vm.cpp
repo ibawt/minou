@@ -183,6 +183,7 @@ Result<Atom> VM::run() {
             auto return_value = pop_atom();
             fmt::print("RET: {}\n", return_value);
 
+            delete env;
             env = (Env *)pop();
             pc = pop();
             inst = (uint8_t *)pop();
