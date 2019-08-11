@@ -95,19 +95,17 @@ Result<Atom> VM::run(std::string_view s) {
     auto i = std::get<std::vector<uint8_t>>(inst);
     i.push_back((uint8_t)OpCode::EXIT);
 
-    fmt::print("START\n");
+    fmt::print("----[INSTRUCTION STREAM]-----\n");
     print_instruction_stream(i.data(), i.size());
-    fmt::print("END\n");
+    fmt::print("-----[INSTRUCTION STREAM END]------\n");
 
     this->inst = i.data();
-    pc = 0;
-
     return run();
 }
 
 Result<Atom> VM::run() {
     for (;;) {
-        fmt::print("[{}] {}\n", pc, instruction_to_string(inst+pc));
+        fmt::print("[{}]\n", instruction_to_string(inst));
         auto opcode = (OpCode)read_instruction<uint8_t>();
 
         switch (opcode) {
@@ -116,13 +114,13 @@ Result<Atom> VM::run() {
         } break;
         case OpCode::JUMP: {
             auto p = read_instruction<word>();
-            pc += p - sizeof(word);
+            inst += p - sizeof(word);
         } break;
         case OpCode::JUMP_IFNOT: {
             auto pred = pop_atom();
             auto pos = read_instruction<word>();
             if (pred.is_false()) {
-                pc += pos - sizeof(word);
+                inst += pos - sizeof(word);
             }
         } break;
         case OpCode::INVOKE: {
@@ -154,11 +152,9 @@ Result<Atom> VM::run() {
                     vars = vars->cdr;
                 }
                 push((word)inst);
-                push(pc);
                 push((word)env);
 
                 inst = (uint8_t *)l->get_compiled_body().data();
-                pc = 0;
                 env = newEnv;
 
                 continue;
@@ -185,7 +181,6 @@ Result<Atom> VM::run() {
 
             delete env;
             env = (Env *)pop();
-            pc = pop();
             inst = (uint8_t *)pop();
 
             push(return_value.value);

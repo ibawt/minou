@@ -58,21 +58,14 @@ private:
 
     template<typename T>
     T read_instruction() {
-        auto i = *(reinterpret_cast<T*>(inst + pc));
-        pc += sizeof(T);
-        return i;
-    }
-
-    template<typename T>
-    T read_instruction_at(size_t pos) {
-        auto i = *(reinterpret_cast<T *>(inst + pos));
+        auto i = *(reinterpret_cast<T*>(inst));
+        inst += sizeof(T);
         return i;
     }
 
     uint8_t  *inst = nullptr;
     std::vector<word> stack;
     Engine            engine;
-    int pc = 0;
     Env *env;
     Continuation *k = nullptr;
 };
