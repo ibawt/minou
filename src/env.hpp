@@ -18,7 +18,7 @@ class Engine;
 
 class Env {
   public:
-    Env(EnvPtr p) : parent(p) {}
+    Env(Env* p) : parent(p) {}
     Env(Engine *engine) { default_env(engine); }
 
     std::optional<Atom> lookup(const Symbol &key) {
@@ -99,7 +99,7 @@ class Env {
     void default_env(Engine *);
 
     std::map<int, Atom> map;
-    std::optional<EnvPtr> parent;
+    std::optional<Env*> parent;
 };
 
 } // namespace minou

@@ -158,6 +158,13 @@ TEST_F(VMTest, Lambda) {
     });
 }
 
+TEST_F(VMTest, If) {
+    run({
+        {"(if 1 1 0)", Atom(1L)},
+        // {"(if #f 1 0)", Atom(0L)},
+    });
+}
+
 class EvalTest : public ::testing::Test {
   protected:
     void SetUp() override { engine = std::make_unique<Engine>(); }

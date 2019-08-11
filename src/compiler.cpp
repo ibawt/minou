@@ -33,8 +33,8 @@ struct Compiler {
                         return p;
                     }
                     push_opcode(OpCode::JUMP_IFNOT);
+                    auto ejp = buffer.size();
                     push_value(0);
-                    auto ejp = buffer.size() - 8;
 
                     auto e = compile(engine, cadr(c), env);
                     if (is_error(e)) {
@@ -43,20 +43,20 @@ struct Compiler {
 
                     switch (len) {
                     case 2: {
-                        set_value(ejp, buffer.size());
+                        set_value(ejp, buffer.size() - ejp);
                     } break; // no else
                     case 3: {
                         push_opcode(OpCode::JUMP);
+                        auto out_jmp = buffer.size();
                         push_value(0);
-                        auto out_jmp = buffer.size() - 8;
 
-                        set_value(ejp, buffer.size());
+                        set_value(ejp, buffer.size() - ejp);
 
                         auto t = compile(engine, caddr(c), env);
                         if(is_error(t)) {
                             return t;
                         }
-                        set_value(out_jmp, buffer.size());
+                        set_value(out_jmp, buffer.size() - out_jmp);
                     } break; // if / else
                     default:
                         return "invalid arity for if";

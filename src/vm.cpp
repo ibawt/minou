@@ -58,7 +58,7 @@ void print_instruction_stream(uint8_t *s, int len) {
 
         auto len = opcode_length(opcode);
 
-        fmt::print("[{}] ", opcode);
+        fmt::print("[{}] {} ", i, opcode);
 
         if (len == 8) {
             auto arg = *(reinterpret_cast<word *>(s + i + 1));
@@ -114,15 +114,15 @@ Result<Atom> VM::run() {
         case OpCode::PUSH: {
             push(read_instruction<word>());
         } break;
-        case OpCode::JUMP:
-            pc = read_instruction<word>();
-            continue;
+        case OpCode::JUMP: {
+            auto p = read_instruction<word>();
+            pc += p - sizeof(word);
+        } break;
         case OpCode::JUMP_IFNOT: {
             auto pred = pop_atom();
             auto pos = read_instruction<word>();
             if (pred.is_false()) {
-                pc = pos;
-                continue;
+                pc += pos - sizeof(word);
             }
         } break;
         case OpCode::INVOKE: {
