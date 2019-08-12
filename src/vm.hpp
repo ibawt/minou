@@ -23,19 +23,32 @@ public:
 
     Atom pop_atom() {
         auto l = pop();
-
         return *(reinterpret_cast<Atom *>(&l));
     }
-
-    void push_atom(Atom a) { stack.push_back(*(reinterpret_cast<word *>(&a))); }
-
     Memory& get_memory() { return engine.get_memory(); }
 
 private:
+    std::vector<Env*> env_cache;
+
+    Env* new_env(Env* parent) {
+        if(env_cache.empty()) {
+            Env* e = new Env(parent);
+            return e;
+        }
+        Env* e = env_cache.back();
+        env_cache.pop_back();
+        e->set_parent(parent);
+        return e;
+    }
+
+    void free_env(Env* e) {
+        e->clear();
+        env_cache.push_back(e);
+    }
+
     word pop() {
         auto i = stack.back();
         stack.pop_back();
-        // fmt::print("pop: 0x{:x}\n", i);
         return i;
     }
 
@@ -51,9 +64,10 @@ private:
         return stack[ stack.size() - offset ];
     }
 
-    void push(word i) {
-        // fmt::print("push: 0x{:x}\n", i);
-        stack.push_back(i);
+    template<typename T>
+    void push(T t) {
+        static_assert(sizeof(T) == sizeof(word));
+        stack.push_back(*(reinterpret_cast<word*>(&t)));
     }
 
     template<typename T>

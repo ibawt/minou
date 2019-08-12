@@ -3,8 +3,6 @@
 #include "compiler.hpp"
 #include <string>
 #include <vector>
-#include <cmath>
-#include <cstdio>
 #include <cstdarg>
 #include "fmt/format.h"
 
@@ -37,19 +35,6 @@ std::string instruction_to_string(uint8_t *s) {
     }
 
     return std::string(out.data(), out.size());
-}
-
-void log(const char* fmt, ...)
-{
-    va_list args;
-
-    va_start(args, fmt);
-
-    vprintf(fmt, args);
-
-    printf("\n");
-
-    va_end(args);
 }
 
 void print_instruction_stream(uint8_t *s, int len) {
@@ -95,9 +80,9 @@ Result<Atom> VM::run(std::string_view s) {
     auto i = std::get<std::vector<uint8_t>>(inst);
     i.push_back((uint8_t)OpCode::EXIT);
 
-    fmt::print("----[INSTRUCTION STREAM]-----\n");
-    print_instruction_stream(i.data(), i.size());
-    fmt::print("-----[INSTRUCTION STREAM END]------\n");
+    // fmt::print("----[INSTRUCTION STREAM]-----\n");
+    // print_instruction_stream(i.data(), i.size());
+    // fmt::print("-----[INSTRUCTION STREAM END]------\n");
 
     this->inst = i.data();
     return run();
@@ -105,8 +90,8 @@ Result<Atom> VM::run(std::string_view s) {
 
 Result<Atom> VM::run() {
     for (;;) {
-        fmt::print("[{}]\n", instruction_to_string(inst));
-        auto opcode = (OpCode)read_instruction<uint8_t>();
+        // fmt::print("[{}]\n", instruction_to_string(inst));
+        auto opcode = read_instruction<OpCode>();
 
         switch (opcode) {
         case OpCode::PUSH: {
@@ -135,15 +120,13 @@ Result<Atom> VM::run() {
                     return r;
                 }
 
-                push_atom(get_atom(r));
+                push(get_atom(r));
             } else {
                 auto l = a.lambda();
-                auto c = l->get_arguments();
-                Env *newEnv = new Env(l->get_env());
+                auto newEnv = new_env(l->get_env());
                 auto vars = l->get_arguments();
                 for (int i = 0; i < num_args; ++i) {
-                    auto arg_value = pop_atom();
-                    newEnv->set(vars->car.symbol(), arg_value);
+                    newEnv->set(vars->car.symbol(), pop_atom());
                     vars = vars->cdr;
                 }
                 push((word)inst);
@@ -151,9 +134,6 @@ Result<Atom> VM::run() {
 
                 inst = (uint8_t *)l->get_compiled_body().data();
 
-                // fmt::print("LAMBDA BODY\n");
-                // print_instruction_stream(inst, l->get_compiled_body().size());
-                // fmt::print("END LAMBDA BODY\n");
                 env = newEnv;
             }
         } break;
@@ -169,7 +149,7 @@ Result<Atom> VM::run() {
                     return r;
                 }
 
-                push_atom(get_atom(r));
+                push(get_atom(r));
             } else {
                 auto l = a.lambda();
                 auto c = l->get_arguments();
@@ -186,9 +166,10 @@ Result<Atom> VM::run() {
             auto value = pop_atom();
             auto sym = pop_atom();
 
-            fmt::print("SET {} = {}\n", sym, value);
+
+            // fmt::print("SET {} = {}\n", sym, value);
             env->set(sym.symbol(), value);
-            push_atom(sym);
+            push(sym);
         } break;
         case OpCode::POP:
             if( stack.empty()) {
@@ -198,18 +179,18 @@ Result<Atom> VM::run() {
             break;
         case OpCode::LOAD: {
             auto sym = pop_atom();
-            fmt::print("LOAD -> {}\n", sym);
+            // fmt::print("LOAD -> {}\n", sym);
 
             auto v = env->lookup(sym.symbol());
             if (v.has_value()) {
-                push_atom(v.value());
+                push(v.value());
             }
         } break;
         case OpCode::RET: {
             auto return_value = pop_atom();
-            fmt::print("RET: {}\n", return_value);
+            // fmt::print("RET: {}\n", return_value);
 
-            delete env;
+            free_env(env);
             env = (Env *)pop();
             inst = (uint8_t *)pop();
 

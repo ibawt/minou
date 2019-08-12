@@ -26,6 +26,31 @@ Result<std::vector<uint8_t>> apply_tailcalls(std::vector<uint8_t> &inst) {
                 out.push_back(inst[pos+opcode_len]);
                 pos += 1 + opcode_len;
                 copy = false;
+            } else if(next == OpCode::JUMP || next == OpCode::JUMP_IFNOT) {
+                auto jump_pos = *(intptr_t *)&inst[pos + 1 + opcode_len + 1];
+                bool still_jumping = true;
+                for (;still_jumping;) {
+                    auto cur_pos = pos+1+opcode_len+1+jump_pos - sizeof(intptr_t)
+                    ;
+                    auto o = (OpCode)inst[cur_pos];
+                    switch(o) {
+                    case OpCode::RET:
+                        out.push_back((uint8_t)OpCode::TAILCALL);
+                        out.push_back(inst[pos + opcode_len]);
+                        pos += 1 + opcode_len;
+                        copy = false;
+                        still_jumping = false;
+                        break;
+                    case OpCode::JUMP:
+                    case OpCode::JUMP_IFNOT:
+                        jump_pos = *(intptr_t*)&inst[cur_pos+1];
+                        cur_pos += sizeof(intptr_t);
+                        cur_pos += jump_pos;
+                        break;
+                    default:
+                        still_jumping = false;
+                    }
+                }
             }
         }break;
         default:
@@ -57,7 +82,7 @@ struct Compiler {
 
 
     Result<std::monostate> compile(Engine *engine, Atom a, Env *env) {
-        fmt::print("compiling: {}\n", a);
+        // fmt::print("compiling: {}\n", a);
         switch (a.get_type()) {
         case AtomType::Cons:
             if (!a.cons()) {
@@ -130,7 +155,6 @@ struct Compiler {
                             return e;
                         }
                         if( c->cdr ) {
-                            fmt::print("adding a pop, cdr is: {}\n", Atom(c->cdr));
                             push_opcode(OpCode::POP);
                         }
                     }

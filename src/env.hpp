@@ -21,6 +21,10 @@ class Env {
     Env(Env* p) : parent(p) {}
     Env(Engine *engine) { default_env(engine); }
 
+    void set_parent(Env *p) {
+        parent = p;
+    }
+
     std::optional<Atom> lookup(const Symbol &key) {
         auto f = map.find(key.interned_value);
 
@@ -64,7 +68,7 @@ class Env {
     }
 
     void set(const Symbol &key, Atom value) {
-        fmt::print("setting: {} = {}\n", key.string(), value);
+        // fmt::print("setting: {} = {}\n", key.string(), value);
         map[key.interned_value] = value;
     }
 

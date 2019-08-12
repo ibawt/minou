@@ -20,8 +20,6 @@ static EvalResult add(Engine *engine, Cons *args, EnvPtr env, Continuation *k) {
         sum += i->car.integer();
     }
 
-    fmt::print("sum is: {}\n", sum);
-
     return k->resume(engine, sum);
 }
 
