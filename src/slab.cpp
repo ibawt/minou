@@ -23,4 +23,5 @@ char *Slab::get() {
     assert(false);
     return nullptr;
 }
+
 } // namespace minou

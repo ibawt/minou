@@ -172,8 +172,8 @@ TEST_F(VMTest, TailCall) {
     run({{"(begin (define foo (lambda (n acc) (if (= 0 n) acc (foo (- n 1) (+ "
           "acc 2))))) (foo 5 0))", Atom(10L)},
          {"(begin (define iter (lambda (a b count) (if (= 0 count) "
-                      "a (iter b (+ a b) (- count 1))))) (iter 0 1 40))",
-                      Atom(102334155L)}});
+                      "a (iter b (+ a b) (- count 1))))) (iter 0 1 90))",
+                      Atom(2880067194370816120L)}});
 }
 
 class EvalTest : public ::testing::Test {

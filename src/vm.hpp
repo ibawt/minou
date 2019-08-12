@@ -21,7 +21,16 @@ public:
 
     Result<Atom> run(std::string_view s);
 
+    Atom pop_atom() {
+        auto l = pop();
+
+        return *(reinterpret_cast<Atom *>(&l));
+    }
+
+    void push_atom(Atom a) { stack.push_back(*(reinterpret_cast<word *>(&a))); }
+
     Memory& get_memory() { return engine.get_memory(); }
+
 private:
     word pop() {
         auto i = stack.back();
@@ -30,15 +39,6 @@ private:
         return i;
     }
 
-    Atom pop_atom() {
-        auto l = pop();
-
-        return *(reinterpret_cast<Atom*>(&l));
-    }
-
-    void push_atom(Atom a) {
-        stack.push_back( *(reinterpret_cast<word*>(&a)));
-    }
 
     void pop(int n) {
         for( ; n > 0 ; n--) {

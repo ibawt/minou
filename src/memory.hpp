@@ -71,10 +71,6 @@ public:
 
 class Memory {
   public:
-    Memory() {
-        consSlab = std::make_unique<Slab>(sizeof(HeapNode) + sizeof(Cons), 1024*1024);
-    }
-
     ~Memory() { free_all(); }
 
     Cons *make_list(const std::vector<Atom> &list) {
@@ -113,7 +109,7 @@ class Memory {
     }
 
     Cons* alloc_cons(Atom a, Cons* next) {
-        auto block = consSlab->get();
+        auto block = consSlab.get();
         int len = sizeof(HeapNode) + sizeof(Cons);
         // memset(block, 0, len);
         auto hn = new (block) HeapNode(len);
@@ -131,7 +127,7 @@ class Memory {
 
   private:
     void free_node(HeapNode *);
-    std::unique_ptr<Slab> consSlab;
+    Slab consSlab = Slab(sizeof(HeapNode) + sizeof(Cons), 1024 * 1024);
 
     void free_all();
 

@@ -63,7 +63,7 @@ void Memory::free_node(HeapNode *h)
     case AtomType::Cons: {
         auto a = (Cons*)h->buff;
         a->~Cons();
-        consSlab->free((char *)h);
+        consSlab.free((char *)h);
         return;
     }
     case AtomType::Continuation: {

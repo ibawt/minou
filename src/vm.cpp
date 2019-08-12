@@ -129,23 +129,12 @@ Result<Atom> VM::run() {
 
             if (a.get_type() == AtomType::Primitive) {
                 auto p = a.primitive();
-                BottomCont bc;
-                Cons *c = nullptr;
 
-                std::vector<Atom> args;
-                for (int i = 0; i < num_args; ++i) {
-                    args.push_back(pop_atom());
-                }
-
-                for( auto i = args.rbegin() ; i != args.rend(); ++i) {
-                    c = engine.get_memory().alloc_cons(*i, c);
-                }
-
-                auto r = p->invoke(&engine, c, env, &bc);
-
+                auto r = p->vm_call(this, num_args);
                 if (is_error(r)) {
                     return r;
                 }
+
                 push_atom(get_atom(r));
             } else {
                 auto l = a.lambda();
@@ -162,9 +151,9 @@ Result<Atom> VM::run() {
 
                 inst = (uint8_t *)l->get_compiled_body().data();
 
-                fmt::print("LAMBDA BODY\n");
-                print_instruction_stream(inst, l->get_compiled_body().size());
-                fmt::print("END LAMBDA BODY\n");
+                // fmt::print("LAMBDA BODY\n");
+                // print_instruction_stream(inst, l->get_compiled_body().size());
+                // fmt::print("END LAMBDA BODY\n");
                 env = newEnv;
             }
         } break;
@@ -174,23 +163,12 @@ Result<Atom> VM::run() {
 
             if (a.get_type() == AtomType::Primitive) {
                 auto p = a.primitive();
-                BottomCont bc;
-                Cons *c = nullptr;
 
-                std::vector<Atom> args;
-                for (int i = 0; i < num_args; ++i) {
-                    args.push_back(pop_atom());
-                }
-
-                for( auto i = args.rbegin() ; i != args.rend(); ++i) {
-                    c = engine.get_memory().alloc_cons(*i, c);
-                }
-
-                auto r = p->invoke(&engine, c, env, &bc);
-
+                auto r = p->vm_call(this, num_args);
                 if (is_error(r)) {
                     return r;
                 }
+
                 push_atom(get_atom(r));
             } else {
                 auto l = a.lambda();

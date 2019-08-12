@@ -46,12 +46,15 @@ class BottomCont : public Continuation {
 };
 
 class Env;
+class VM;
 
 class Procedure {
   public:
     virtual ~Procedure() {}
     virtual Result<Atom> invoke(Engine *, Cons *args, EnvPtr env,
                                 Continuation *k) = 0;
+    virtual Result<Atom> vm_call(VM*, int num_args) = 0;
+
     virtual void visit() {}
 };
 
@@ -65,6 +68,10 @@ class Lambda : public Procedure {
 
     EvalResult invoke(Engine *, Cons *args, EnvPtr env,
                       Continuation *k) override;
+
+    Result<Atom> vm_call(VM*, int num_args) override {
+        return "not used";
+    }
 
     void visit() override {
         minou::visit((char *)this);
@@ -90,21 +97,29 @@ class Lambda : public Procedure {
     EnvPtr env;
 };
 
+class VM;
 using Applicative = EvalResult(Engine *, Cons *args, EnvPtr &env,
                                Continuation *k);
+using VMCall = Result<Atom>(VM*, int);
 
 class Primitive : public Procedure {
   public:
-    Primitive(std::function<Applicative> x) : op(x) {}
+    Primitive(std::function<Applicative> x, std::function<VMCall> vm) : op(x), vm(vm) {}
     EvalResult invoke(Engine *eng, Cons *args, EnvPtr env,
                       Continuation *k) override {
         return op(eng, args, env, k);
     }
 
+    Result<Atom> vm_call(VM* vm, int num_args) override {
+        return this->vm(vm, num_args);
+    }
+
+
     void visit() override {
         minou::visit((char *) this);
     }
   private:
+    std::function<VMCall> vm;
     std::function<Applicative> op;
 };
 

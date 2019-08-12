@@ -3,6 +3,7 @@
 #include "engine.hpp"
 #include "eval.hpp"
 #include "types.hpp"
+#include "vm.hpp"
 #include <string>
 
 namespace minou {
@@ -23,6 +24,20 @@ static EvalResult add(Engine *engine, Cons *args, EnvPtr env, Continuation *k) {
 
     return k->resume(engine, sum);
 }
+
+static Result<Atom> vm_add(VM* vm, int num_args) {
+    int64_t sum = 0;
+    for( int i = 0 ; i < num_args ; ++i) {
+        auto v = vm->pop_atom();
+        if( v.get_type() != AtomType::Number) {
+            return "invalid type for add";
+        }
+
+        sum += v.integer();
+    }
+    return Atom(sum);
+}
+
 
 static EvalResult subtraction(Engine *engine, Cons *args, EnvPtr env,
                               Continuation *k) {
@@ -57,6 +72,32 @@ static EvalResult subtraction(Engine *engine, Cons *args, EnvPtr env,
     return k->resume(engine, i);
 }
 
+static Result<Atom> vm_subtract(VM* vm, int num_args)
+{
+    if( num_args <= 0 ) {
+        return "invalid arity";
+    }
+
+    auto v = vm->pop_atom();
+    if( v.get_type() != AtomType::Number) {
+        return "wrong type";
+    }
+    auto value = v.integer();
+
+    if( num_args == 1) {
+        return -value;
+    }
+
+    for( int i = 1 ; i < num_args ; ++i) {
+        auto v = vm->pop_atom();
+        if( v.get_type() != AtomType::Number) {
+            return "wrong type" ;
+        }
+        value -= v.integer();
+    }
+    return value;
+}
+
 static EvalResult equals(Engine *engine, Cons *args, EnvPtr env,
                               Continuation *k) {
     assert(env);
@@ -81,6 +122,22 @@ static EvalResult equals(Engine *engine, Cons *args, EnvPtr env,
     return k->resume(engine, Atom(Boolean(true)));
 }
 
+static Result<Atom> vm_equals(VM* vm, int num_args)
+{
+    if( num_args == 0 ) {
+        return "invalid arity";
+    }
+
+    auto v = vm->pop_atom();
+    for( int i = 1 ; i < num_args ; ++i) {
+        auto vv = vm->pop_atom();
+        if( v.value != vv.value) {
+            return Boolean(false);
+        }
+    }
+    return Boolean(true);
+}
+
 // TODO: this kind of works but not really
 static Result<Atom> call_cc(Engine *engine, Cons *args, Env *env,
                             Continuation *k) {
@@ -96,11 +153,16 @@ static Result<Atom> call_cc(Engine *engine, Cons *args, Env *env,
     return args->car.lambda()->invoke(engine, x, env, k);
 }
 
+static Result<Atom> vm_call_cc(VM* vm, int num_args)
+{
+    return "not implemented";
+}
+
 void Env::default_env(Engine *engine) {
-    map[Symbol("+").interned_value] = engine->get_memory().alloc<Primitive>(add);
-    map[Symbol("=").interned_value] = engine->get_memory().alloc<Primitive>(equals);
-    map[Symbol("-").interned_value] = engine->get_memory().alloc<Primitive>(subtraction);
-    map[Symbol("call/cc").interned_value] = engine->get_memory().alloc<Primitive>(call_cc);
+    map[Symbol("+").interned_value] = engine->get_memory().alloc<Primitive>(add, vm_add);
+    map[Symbol("=").interned_value] = engine->get_memory().alloc<Primitive>(equals, vm_equals);
+    map[Symbol("-").interned_value] = engine->get_memory().alloc<Primitive>(subtraction, vm_subtract);
+    map[Symbol("call/cc").interned_value] = engine->get_memory().alloc<Primitive>(call_cc, vm_call_cc);
 }
 
 } // namespace minou
