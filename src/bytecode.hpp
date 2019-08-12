@@ -19,6 +19,7 @@ enum class OpCode : uint8_t {
     INVOKE,
     RESUME,
     ALLOC,
+    TAILCALL,
     EXIT
 };
 
@@ -50,6 +51,8 @@ constexpr inline const std::string_view opcode_string(const OpCode o)
         return "ALLOC";
     case OpCode::EXIT:
         return "EXIT";
+    case OpCode::TAILCALL:
+        return "TAILCALL";
     }
 }
 
@@ -60,6 +63,7 @@ inline int opcode_length(OpCode o) {
     case OpCode::JUMP_IFNOT:
         return 8;
     case OpCode::INVOKE:
+    case OpCode::TAILCALL:
         return 1;
     default:
         return 0;

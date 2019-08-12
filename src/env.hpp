@@ -64,6 +64,7 @@ class Env {
     }
 
     void set(const Symbol &key, Atom value) {
+        fmt::print("setting: {} = {}\n", key.string(), value);
         map[key.interned_value] = value;
     }
 

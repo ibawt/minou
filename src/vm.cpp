@@ -131,16 +131,22 @@ Result<Atom> VM::run() {
                 auto p = a.primitive();
                 BottomCont bc;
                 Cons *c = nullptr;
+
+                std::vector<Atom> args;
                 for (int i = 0; i < num_args; ++i) {
-                    c = engine.get_memory().alloc_cons(pop_atom(), c);
+                    args.push_back(pop_atom());
+                }
+
+                for( auto i = args.rbegin() ; i != args.rend(); ++i) {
+                    c = engine.get_memory().alloc_cons(*i, c);
                 }
 
                 auto r = p->invoke(&engine, c, env, &bc);
+
                 if (is_error(r)) {
                     return r;
                 }
                 push_atom(get_atom(r));
-
             } else {
                 auto l = a.lambda();
                 auto c = l->get_arguments();
@@ -155,10 +161,56 @@ Result<Atom> VM::run() {
                 push((word)env);
 
                 inst = (uint8_t *)l->get_compiled_body().data();
-                env = newEnv;
 
-                continue;
+                fmt::print("LAMBDA BODY\n");
+                print_instruction_stream(inst, l->get_compiled_body().size());
+                fmt::print("END LAMBDA BODY\n");
+                env = newEnv;
             }
+        } break;
+        case OpCode::TAILCALL: {
+            auto num_args = read_instruction<uint8_t>();
+            auto a = pop_atom();
+
+            if (a.get_type() == AtomType::Primitive) {
+                auto p = a.primitive();
+                BottomCont bc;
+                Cons *c = nullptr;
+
+                std::vector<Atom> args;
+                for (int i = 0; i < num_args; ++i) {
+                    args.push_back(pop_atom());
+                }
+
+                for( auto i = args.rbegin() ; i != args.rend(); ++i) {
+                    c = engine.get_memory().alloc_cons(*i, c);
+                }
+
+                auto r = p->invoke(&engine, c, env, &bc);
+
+                if (is_error(r)) {
+                    return r;
+                }
+                push_atom(get_atom(r));
+            } else {
+                auto l = a.lambda();
+                auto c = l->get_arguments();
+                auto vars = l->get_arguments();
+                for (int i = 0; i < num_args; ++i) {
+                    auto arg_value = pop_atom();
+                    env->set(vars->car.symbol(), arg_value);
+                    vars = vars->cdr;
+                }
+                inst = (uint8_t *)l->get_compiled_body().data();
+            }
+        }break;
+        case OpCode::SET: {
+            auto value = pop_atom();
+            auto sym = pop_atom();
+
+            fmt::print("SET {} = {}\n", sym, value);
+            env->set(sym.symbol(), value);
+            push_atom(sym);
         } break;
         case OpCode::POP:
             if( stack.empty()) {

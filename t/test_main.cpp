@@ -137,6 +137,9 @@ protected:
         for (const auto &t : tests) {
             const auto result = vm->run(t.input);
 
+            if( is_error(result)) {
+                fmt::print("error was: {}\n", get_error(result));
+            }
             ASSERT_FALSE(is_error(result));
             const auto aa = std::get<Atom>(result);
             EXPECT_EQ(aa, t.expected) << t.input;
@@ -163,6 +166,14 @@ TEST_F(VMTest, If) {
         {"(if 1 1 0)", Atom(1L)},
         // {"(if #f 1 0)", Atom(0L)},
     });
+}
+
+TEST_F(VMTest, TailCall) {
+    run({{"(begin (define foo (lambda (n acc) (if (= 0 n) acc (foo (- n 1) (+ "
+          "acc 2))))) (foo 5 0))", Atom(10L)},
+         {"(begin (define iter (lambda (a b count) (if (= 0 count) "
+                      "a (iter b (+ a b) (- count 1))))) (iter 0 1 40))",
+                      Atom(102334155L)}});
 }
 
 class EvalTest : public ::testing::Test {

@@ -19,6 +19,8 @@ static EvalResult add(Engine *engine, Cons *args, EnvPtr env, Continuation *k) {
         sum += i->car.integer();
     }
 
+    fmt::print("sum is: {}\n", sum);
+
     return k->resume(engine, sum);
 }
 
@@ -42,14 +44,43 @@ static EvalResult subtraction(Engine *engine, Cons *args, EnvPtr env,
     }
     args = args->cdr;
 
+
     for (; args; args = args->cdr) {
         if (args->car.get_type() != AtomType::Number) {
             return std::string("invalid type");
         }
         i -= args->car.integer();
     }
+
+    fmt::print("i = {}\n", i);
+
     return k->resume(engine, i);
 }
+
+static EvalResult equals(Engine *engine, Cons *args, EnvPtr env,
+                              Continuation *k) {
+    assert(env);
+    assert(k);
+
+    if (!args) {
+        return std::string("invalid arity");
+    }
+
+    intptr_t i = args->car.value;
+
+    if (!args->cdr) {
+        return k->resume(engine, Atom(Boolean(true)));
+    }
+    args = args->cdr;
+
+    for (; args; args = args->cdr) {
+        if( i != args->car.value) {
+            return k->resume(engine, Atom(Boolean(false)));
+        }
+    }
+    return k->resume(engine, Atom(Boolean(true)));
+}
+
 // TODO: this kind of works but not really
 static Result<Atom> call_cc(Engine *engine, Cons *args, Env *env,
                             Continuation *k) {
@@ -67,6 +98,7 @@ static Result<Atom> call_cc(Engine *engine, Cons *args, Env *env,
 
 void Env::default_env(Engine *engine) {
     map[Symbol("+").interned_value] = engine->get_memory().alloc<Primitive>(add);
+    map[Symbol("=").interned_value] = engine->get_memory().alloc<Primitive>(equals);
     map[Symbol("-").interned_value] = engine->get_memory().alloc<Primitive>(subtraction);
     map[Symbol("call/cc").interned_value] = engine->get_memory().alloc<Primitive>(call_cc);
 }

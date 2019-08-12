@@ -7,6 +7,46 @@ namespace minou {
 
 #define TRY(x,y) auto x = y; if(is_error(x)) { return x; }
 
+Result<std::vector<uint8_t>> apply_tailcalls(std::vector<uint8_t> &inst) {
+    std::vector<uint8_t> out;
+    out.reserve(inst.size());
+
+    int pos = 0;
+    for (;;) {
+        auto opcode = static_cast<OpCode>(inst[pos]);
+        auto opcode_len = opcode_length(opcode);
+
+        bool copy = true;
+        switch (opcode) {
+        case OpCode::INVOKE: {
+            auto next = static_cast<OpCode>(inst[pos+opcode_len+1]);
+
+            if( next == OpCode::RET) {
+                out.push_back((uint8_t)OpCode::TAILCALL);
+                out.push_back(inst[pos+opcode_len]);
+                pos += 1 + opcode_len;
+                copy = false;
+            }
+        }break;
+        default:
+            break;
+        }
+        if (copy) {
+            out.push_back((uint8_t)opcode);
+            for (int i = 0; i < opcode_len; ++i) {
+                out.push_back(inst[pos + i + 1]);
+            }
+
+            pos += 1 + opcode_len;
+        }
+        if(pos >= inst.size() ) {
+            break;
+        }
+    }
+
+    return out;
+}
+
 struct Compiler {
     std::vector<uint8_t> buffer;
 
@@ -14,8 +54,10 @@ struct Compiler {
         buffer.push_back(static_cast<uint8_t>(op));
     }
 
+
+
     Result<std::monostate> compile(Engine *engine, Atom a, Env *env) {
-        // fmt::print("compiling: {}\n", a);
+        fmt::print("compiling: {}\n", a);
         switch (a.get_type()) {
         case AtomType::Cons:
             if (!a.cons()) {
@@ -72,7 +114,13 @@ struct Compiler {
                     }
                     c.push_opcode(OpCode::RET);
 
-                    auto l = engine->get_memory().alloc<Lambda>(a.cons()->cdr->car.cons(), body, env, std::move(c.buffer));
+                    auto buff = apply_tailcalls(c.buffer);
+                    if( is_error(buff)) {
+                        return get_error(buff);
+                    }
+                    auto bb = std::get<std::vector<uint8_t>>(buff);
+
+                    auto l = engine->get_memory().alloc<Lambda>(a.cons()->cdr->car.cons(), body, env, std::move(bb));
                     push_value(l);
 
                 } else if(sym == "begin") {
@@ -82,18 +130,43 @@ struct Compiler {
                             return e;
                         }
                         if( c->cdr ) {
-                            buffer.push_back((uint8_t)OpCode::POP);
+                            fmt::print("adding a pop, cdr is: {}\n", Atom(c->cdr));
+                            push_opcode(OpCode::POP);
                         }
                     }
                 }
+                else if(sym == "define") {
+                    auto sym = a.cons()->cdr->car;
+                    auto body = a.cons()->cdr->cdr->car;
+
+                    if( sym.get_type() != AtomType::Symbol) {
+                        return "must be a symbol";
+                    }
+
+                    push_value(sym);
+
+                    auto e = compile(engine, body, env);
+                    if( is_error(e)) {
+                        return e;
+                    }
+                    push_opcode(OpCode::SET);
+                }
                 else {
-                    int i = 0;
+                    std::vector<Atom> arg_list;
                     for (auto c : *a.cons()->cdr) {
-                        auto e = compile(engine, car(c), env);
-                        if(is_error(e)) {
-                            return e ;
+                        arg_list.push_back(car(c));
+                    }
+
+                    if (arg_list.size() > 255) {
+                        return "too many arguments";
+                    }
+
+                    for (auto i = arg_list.rbegin(); i != arg_list.rend();
+                         ++i) {
+                        auto e = compile(engine, *i, env);
+                        if( is_error(e)) {
+                            return e;
                         }
-                        ++i;
                     }
 
                     auto e = compile(engine, a.cons()->car, env);
@@ -101,21 +174,22 @@ struct Compiler {
                         return e;
                     }
 
-                    buffer.push_back((uint8_t)OpCode::INVOKE);
+                    push_opcode(OpCode::INVOKE);
                     buffer.push_back(a.cons()->length()-1);
 
-                    if (i > 255) {
-                        return "too many arguments";
-                    }
                 }
             } else {
-                int i = 0;
+                std::vector<Atom> arg_list;
                 for (auto c : *a.cons()->cdr) {
-                    auto e = compile(engine, car(c), env);
+                    arg_list.push_back(c->car)
+                    ;
+                }
+
+                for (auto i = arg_list.rbegin(); i != arg_list.rend(); ++i) {
+                    auto e = compile(engine, *i, env);
                     if (is_error(e)) {
                         return e;
                     }
-                    ++i;
                 }
                 auto e = compile(engine, a.cons()->car, env);
                 if (is_error(e)) {
@@ -125,7 +199,7 @@ struct Compiler {
                 push_opcode(OpCode::INVOKE);
                 buffer.push_back(a.cons()->length() - 1);
 
-                if (i > 255) {
+                if (arg_list.size() > 255) {
                     return "too many arguments";
                 }
             }
@@ -166,10 +240,11 @@ Result<std::vector<uint8_t>> compile(Engine *engine, Atom a, Env *env)
 {
     Compiler c;
     auto e = c.compile(engine, a, env);
-    if( is_error(e)) {
+    if (is_error(e)) {
         return get_error(e);
     }
-    return c.buffer;
+
+    return apply_tailcalls(c.buffer);
 }
 
-}
+} // namespace minou
