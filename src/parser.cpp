@@ -1,5 +1,6 @@
 #include "parser.hpp"
 #include <cstdlib>
+#include <cerrno>
 #include <string>
 #include <vector>
 

@@ -170,6 +170,8 @@ class Procedure;
 
 struct Atom {
     Atom() : value(NIL) {}
+    Atom(int i) : value(INTEGER | ( i << TAG_BITS)) {}
+    Atom(long i) : value(INTEGER | ( i << TAG_BITS)) {}
     Atom(int64_t i) : value(INTEGER | (i << TAG_BITS)) {}
     Atom(Boolean b) : value(BOOL | (b() << TAG_BITS)) {}
     Atom(Cons *cons) : value((intptr_t)cons) {
