@@ -78,7 +78,7 @@ Result<Atom> VM::run(std::string_view s) {
     }
 
     auto i = std::get<std::vector<uint8_t>>(inst);
-    i.push_back((uint8_t)OpCode::EXIT);
+    i.push_back(static_cast<uint8_t>(OpCode::EXIT));
 
     // fmt::print("----[INSTRUCTION STREAM]-----\n");
     // print_instruction_stream(i.data(), i.size());
@@ -102,7 +102,7 @@ Result<Atom> VM::run() {
             inst += p - sizeof(word);
         } break;
         case OpCode::JUMP_IFNOT: {
-            auto pred = pop_atom();
+            auto pred = pop<Atom>();
             auto pos = read_instruction<word>();
             if (pred.is_false()) {
                 inst += pos - sizeof(word);
@@ -110,7 +110,7 @@ Result<Atom> VM::run() {
         } break;
         case OpCode::INVOKE: {
             auto num_args = read_instruction<uint8_t>();
-            auto a = pop_atom();
+            auto a = pop<Atom>();
 
             if (a.get_type() == AtomType::Primitive) {
                 auto p = a.primitive();
@@ -126,20 +126,20 @@ Result<Atom> VM::run() {
                 auto newEnv = new_env(l->get_env());
                 auto vars = l->get_arguments();
                 for (int i = 0; i < num_args; ++i) {
-                    newEnv->set(vars->car.symbol(), pop_atom());
+                    newEnv->set(vars->car.symbol(), pop<Atom>());
                     vars = vars->cdr;
                 }
-                push((word)inst);
-                push((word)env);
+                push(inst);
+                push(env);
 
-                inst = (uint8_t *)l->get_compiled_body().data();
+                inst = l->get_compiled_body().data();
 
                 env = newEnv;
             }
         } break;
         case OpCode::TAILCALL: {
             auto num_args = read_instruction<uint8_t>();
-            auto a = pop_atom();
+            auto a = pop<Atom>();
 
             if (a.get_type() == AtomType::Primitive) {
                 auto p = a.primitive();
@@ -155,17 +155,16 @@ Result<Atom> VM::run() {
                 auto c = l->get_arguments();
                 auto vars = l->get_arguments();
                 for (int i = 0; i < num_args; ++i) {
-                    auto arg_value = pop_atom();
+                    auto arg_value = pop<Atom>();
                     env->set(vars->car.symbol(), arg_value);
                     vars = vars->cdr;
                 }
-                inst = (uint8_t *)l->get_compiled_body().data();
+                inst = l->get_compiled_body().data();
             }
         }break;
         case OpCode::SET: {
-            auto value = pop_atom();
-            auto sym = pop_atom();
-
+            auto value = pop<Atom>();
+            auto sym = pop<Atom>();
 
             // fmt::print("SET {} = {}\n", sym, value);
             env->set(sym.symbol(), value);
@@ -178,7 +177,7 @@ Result<Atom> VM::run() {
             stack.pop_back();
             break;
         case OpCode::LOAD: {
-            auto sym = pop_atom();
+            auto sym = pop<Atom>();
             // fmt::print("LOAD -> {}\n", sym);
 
             auto v = env->lookup(sym.symbol());
@@ -187,12 +186,11 @@ Result<Atom> VM::run() {
             }
         } break;
         case OpCode::RET: {
-            auto return_value = pop_atom();
+            auto return_value = pop<Atom>();
             // fmt::print("RET: {}\n", return_value);
-
             free_env(env);
-            env = (Env *)pop();
-            inst = (uint8_t *)pop();
+            env = pop<Env*>();
+            inst = pop<uint8_t*>();
 
             push(return_value.value);
         } break;
@@ -200,7 +198,7 @@ Result<Atom> VM::run() {
             if (stack.size() == 0) {
                 return Atom();
             }
-            return pop_atom();
+            return pop<Atom>();
         default:
             break;
         }

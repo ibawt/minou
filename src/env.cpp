@@ -26,7 +26,7 @@ static EvalResult add(Engine *engine, Cons *args, EnvPtr env, Continuation *k) {
 static Result<Atom> vm_add(VM* vm, int num_args) {
     int64_t sum = 0;
     for( int i = 0 ; i < num_args ; ++i) {
-        auto v = vm->pop_atom();
+        auto v = vm->pop<Atom>();
         if( v.get_type() != AtomType::Number) {
             return "invalid type for add";
         }
@@ -76,7 +76,7 @@ static Result<Atom> vm_subtract(VM* vm, int num_args)
         return "invalid arity";
     }
 
-    auto v = vm->pop_atom();
+    auto v = vm->pop<Atom>();
     if( v.get_type() != AtomType::Number) {
         return "wrong type";
     }
@@ -87,7 +87,7 @@ static Result<Atom> vm_subtract(VM* vm, int num_args)
     }
 
     for( int i = 1 ; i < num_args ; ++i) {
-        auto v = vm->pop_atom();
+        auto v = vm->pop<Atom>();
         if( v.get_type() != AtomType::Number) {
             return "wrong type" ;
         }
@@ -126,9 +126,9 @@ static Result<Atom> vm_equals(VM* vm, int num_args)
         return "invalid arity";
     }
 
-    auto v = vm->pop_atom();
+    auto v = vm->pop<Atom>();
     for( int i = 1 ; i < num_args ; ++i) {
-        auto vv = vm->pop_atom();
+        auto vv = vm->pop<Atom>();
         if( v.value != vv.value) {
             return Boolean(false);
         }
