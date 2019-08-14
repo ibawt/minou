@@ -13,6 +13,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/Support/TargetSelect.h"
 #include <string>
 #include <map>
 
@@ -25,7 +26,11 @@ public:
         module = llvm::make_unique<llvm::Module>("my thing", context);
     }
 
-    llvm::Value* top_compile(Atom a) {
+    ~LLVMCompiler() {
+        module.reset();
+    }
+
+    llvm::Function* top_compile(Atom a) {
         std::vector<llvm::Type*> args;
         auto ft = llvm::FunctionType::get(llvm::Type::getInt64Ty(context), args, false);
 
@@ -48,6 +53,10 @@ public:
         return f;
     }
 
+    std::unique_ptr<llvm::Module> get_module() {
+        return std::move(module);
+    }
+
     llvm::Value* compile(Atom a) {
         fmt::print("compiling: {}\n", a);
         switch( a.get_type() ) {
@@ -64,13 +73,13 @@ public:
                     if(!pred) {
                         return nullptr;
                     }
-                    auto is_boolean = builder.CreateICmpNE(pred, llvm::ConstantInt::get(context, llvm::APInt(64, Atom(Boolean(false)).value)));
+                    auto is_boolean = builder.CreateICmpNE(pred, llvm::ConstantInt::get(context, llvm::APInt(64, Atom(Boolean(false)).value)), "ifcond");
 
                     auto theFunc = builder.GetInsertBlock()->getParent();
                     auto thenBB = llvm::BasicBlock::Create(context, "then", theFunc);
 
-                    auto elseBB = llvm::BasicBlock::Create(context, "else", theFunc);
-                    auto mergeBB = llvm::BasicBlock::Create(context, "ifcont", theFunc);
+                    auto elseBB = llvm::BasicBlock::Create(context, "else");
+                    auto mergeBB = llvm::BasicBlock::Create(context, "ifcont");
 
                     builder.CreateCondBr(is_boolean, thenBB, elseBB);
 
@@ -114,19 +123,26 @@ public:
         return nullptr;
     }
 private:
-    llvm::LLVMContext context;
-    llvm::IRBuilder<> builder;
     std::unique_ptr<llvm::Module> module;
+    llvm::IRBuilder<> builder;
+    llvm::LLVMContext context;
     std::map<std::string, llvm::Value*> named_values;
 };
 
     void compile_llvm(Atom a)
     {
+        llvm::InitializeNativeTarget();
+        llvm::InitializeNativeTargetAsmPrinter();
+        llvm::InitializeNativeTargetAsmParser();
+
         LLVMCompiler c;
 
         auto v = c.top_compile(a);
 
         v->print(llvm::errs());
+        // v->removeFromParent();
+        auto m = c.get_module();
+        // delete v;
     }
 
     llvm::Value* logErrorV(const char *s)
