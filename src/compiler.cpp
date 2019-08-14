@@ -21,7 +21,98 @@ namespace minou {
 class LLVMCompiler
 {
 public:
-    LLVMCompiler() : builder(context) {}
+    LLVMCompiler() : builder(context) {
+        module = llvm::make_unique<llvm::Module>("my thing", context);
+    }
+
+    llvm::Value* top_compile(Atom a) {
+        std::vector<llvm::Type*> args;
+        auto ft = llvm::FunctionType::get(llvm::Type::getInt64Ty(context), args, false);
+
+        auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "main", module.get());
+
+        auto bb = llvm::BasicBlock::Create(context, "entry", f);
+        builder.SetInsertPoint(bb);
+
+        auto v = compile(a);
+        if(! v) {
+            return nullptr;
+        }
+
+        builder.CreateRet(v);
+
+        if(llvm::verifyFunction(*f, &llvm::errs())) {
+            fmt::print("failed verification\n");
+        }
+
+        return f;
+    }
+
+    llvm::Value* compile(Atom a) {
+        fmt::print("compiling: {}\n", a);
+        switch( a.get_type() ) {
+        case AtomType::Cons:
+            if( !a.cons() ) {
+                fmt::print("invalid list application\n");
+                return nullptr;
+            }
+            if( a.cons()->car.get_type() == AtomType::Symbol) {
+                auto sym = a.cons()->car.symbol();
+
+                if( sym == "if") {
+                    auto pred = compile(a.cons()->cdr->car);
+                    if(!pred) {
+                        return nullptr;
+                    }
+                    auto is_boolean = builder.CreateICmpNE(pred, llvm::ConstantInt::get(context, llvm::APInt(64, Atom(Boolean(false)).value)));
+
+                    auto theFunc = builder.GetInsertBlock()->getParent();
+                    auto thenBB = llvm::BasicBlock::Create(context, "then", theFunc);
+
+                    auto elseBB = llvm::BasicBlock::Create(context, "else", theFunc);
+                    auto mergeBB = llvm::BasicBlock::Create(context, "ifcont", theFunc);
+
+                    builder.CreateCondBr(is_boolean, thenBB, elseBB);
+
+                    builder.SetInsertPoint(thenBB);
+
+                    auto then = compile(a.cons()->cdr->cdr->car);
+                    if(!then) {
+                        return nullptr;
+                    }
+
+                    builder.CreateBr(mergeBB);
+
+                    thenBB = builder.GetInsertBlock();
+
+                    theFunc->getBasicBlockList().push_back(elseBB);
+                    builder.SetInsertPoint(elseBB);
+
+                    auto elseV = compile(a.cons()->cdr->cdr->cdr->car);
+                    if(!elseV) {
+                        return nullptr;
+                    }
+
+                    builder.CreateBr(mergeBB);
+                    elseBB = builder.GetInsertBlock();
+
+                    theFunc->getBasicBlockList().push_back(mergeBB);
+                    builder.SetInsertPoint(mergeBB);
+
+                    auto pn = builder.CreatePHI(llvm::Type::getInt64Ty(context), 2, "iftmp");
+
+                    pn->addIncoming(then, thenBB);
+                    pn->addIncoming(elseV, elseBB);
+
+                    return pn;
+                }
+            }
+            break;
+        default:
+            return llvm::ConstantInt::get(context, llvm::APInt(64, a.value));
+        }
+        return nullptr;
+    }
 private:
     llvm::LLVMContext context;
     llvm::IRBuilder<> builder;
@@ -29,10 +120,21 @@ private:
     std::map<std::string, llvm::Value*> named_values;
 };
 
+    void compile_llvm(Atom a)
+    {
+        LLVMCompiler c;
+
+        auto v = c.top_compile(a);
+
+        v->print(llvm::errs());
+    }
+
     llvm::Value* logErrorV(const char *s)
     {
         return nullptr;
     }
+
+
 
 #define TRY(x,y) auto x = y; if(is_error(x)) { return x; }
 
@@ -289,6 +391,11 @@ struct Compiler {
 Result<std::vector<uint8_t>> compile(Engine *engine, Atom a, Env *env)
 {
     Compiler c;
+
+    fmt::print("LLVM->\n");
+    compile_llvm(a);
+    fmt::print("\nEND LLVM\n");
+
     auto e = c.compile(engine, a, env);
     if (is_error(e)) {
         return get_error(e);
