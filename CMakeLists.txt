@@ -34,6 +34,11 @@ endif()
 
 add_subdirectory(vendor/fmt)
 
+find_package(LLVM REQUIRED CONFIG)
+
+message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
+message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+
 set (main src/main.cpp)
 
 set(files
@@ -64,12 +69,17 @@ set(files
 
 add_executable(minou ${main} ${files})
 
+include_directories(${LLVM_INCLUDE_DIRS})
+add_definitions(${LLVM_DEFINITIONS})
+
+llvm_map_components_to_libnames(llvm_libs support core irreader)
+
 target_compile_features(minou PRIVATE cxx_std_17)
-target_link_libraries(minou readline fmt)
+target_link_libraries(minou readline fmt ${llvm_libs})
 
 # # Add test cpp file
 add_executable( minou-tests t/test_main.cpp ${files})
 # # Link test executable against gtest & gtest_main
 target_compile_features(minou-tests PRIVATE cxx_std_17)
-target_link_libraries(minou-tests gtest gtest_main fmt)
-include_directories("src/" "vendor/fmt/include")
+target_link_libraries(minou-tests gtest gtest_main fmt ${llvm_libs})
+include_directories("src/" "vendor/fmt/include" ${LLVM_INCLUDE_DIRS})

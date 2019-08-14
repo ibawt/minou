@@ -2,8 +2,37 @@
 #include <vector>
 #include "eval.hpp"
 #include "engine.hpp"
+#include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/Type.h"
+#include "llvm/IR/Verifier.h"
+#include <string>
+#include <map>
 
 namespace minou {
+
+class LLVMCompiler
+{
+public:
+    LLVMCompiler() : builder(context) {}
+private:
+    llvm::LLVMContext context;
+    llvm::IRBuilder<> builder;
+    std::unique_ptr<llvm::Module> module;
+    std::map<std::string, llvm::Value*> named_values;
+};
+
+    llvm::Value* logErrorV(const char *s)
+    {
+        return nullptr;
+    }
 
 #define TRY(x,y) auto x = y; if(is_error(x)) { return x; }
 
@@ -22,17 +51,16 @@ Result<std::vector<uint8_t>> apply_tailcalls(std::vector<uint8_t> &inst) {
             auto next = static_cast<OpCode>(inst[pos+opcode_len+1]);
 
             if( next == OpCode::RET) {
-                out.push_back((uint8_t)OpCode::TAILCALL);
+                out.push_back(static_cast<uint8_t>(OpCode::TAILCALL));
                 out.push_back(inst[pos+opcode_len]);
                 pos += 1 + opcode_len;
                 copy = false;
             } else if(next == OpCode::JUMP || next == OpCode::JUMP_IFNOT) {
                 auto jump_pos = *(intptr_t *)&inst[pos + 1 + opcode_len + 1];
                 bool still_jumping = true;
-                for (;still_jumping;) {
-                    auto cur_pos = pos+1+opcode_len+1+jump_pos - sizeof(intptr_t)
-                    ;
-                    auto o = (OpCode)inst[cur_pos];
+                while(still_jumping) {
+                    auto cur_pos = pos+1+opcode_len+1+jump_pos - sizeof(intptr_t);
+                    auto o = static_cast<OpCode>(inst[cur_pos]);
                     switch(o) {
                     case OpCode::RET:
                         out.push_back((uint8_t)OpCode::TAILCALL);
@@ -78,8 +106,6 @@ struct Compiler {
     void push_opcode(OpCode op) {
         buffer.push_back(static_cast<uint8_t>(op));
     }
-
-
 
     Result<std::monostate> compile(Engine *engine, Atom a, Env *env) {
         // fmt::print("compiling: {}\n", a);
