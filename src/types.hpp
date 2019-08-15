@@ -171,8 +171,10 @@ class Procedure;
 struct Atom {
     Atom() : value(NIL) {}
     Atom(int i) : value(INTEGER | ( i << TAG_BITS)) {}
-    Atom(long i) : value(INTEGER | ( i << TAG_BITS)) {}
+    Atom(long i) : value(INTEGER | (i << TAG_BITS)) {}
+    #ifdef __APPLE__
     Atom(int64_t i) : value(INTEGER | (i << TAG_BITS)) {}
+    #endif
     Atom(Boolean b) : value(BOOL | (b() << TAG_BITS)) {}
     Atom(Cons *cons) : value((intptr_t)cons) {
         if (cons) {

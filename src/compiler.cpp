@@ -2,7 +2,8 @@
 #include <vector>
 #include "eval.hpp"
 #include "engine.hpp"
-#include "llvm/ADT/APFloat.h"
+#include "kaleidoscope.h"
+#include "llvm/ADT/APInt.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
@@ -14,8 +15,13 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/TargetSelect.h"
+#include "llvm/Target/TargetMachine.h"
+#include "llvm/Transforms/InstCombine/InstCombine.h"
+#include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Scalar/GVN.h"
 #include <string>
 #include <map>
+#include <string>
 
 namespace minou {
 
@@ -114,6 +120,8 @@ public:
                     pn->addIncoming(elseV, elseBB);
 
                     return pn;
+                } else if(sym == "=") {
+
                 }
             }
             break;
@@ -129,28 +137,47 @@ private:
     std::map<std::string, llvm::Value*> named_values;
 };
 
-    void compile_llvm(Atom a)
-    {
-        llvm::InitializeNativeTarget();
-        llvm::InitializeNativeTargetAsmPrinter();
-        llvm::InitializeNativeTargetAsmParser();
+void compile_llvm(Atom a) {
+    llvm::InitializeNativeTarget();
+    llvm::InitializeNativeTargetAsmPrinter();
+    llvm::InitializeNativeTargetAsmParser();
 
-        LLVMCompiler c;
+    auto jit = llvm::make_unique<llvm::orc::KaleidoscopeJIT>();
 
-        auto v = c.top_compile(a);
+    LLVMCompiler c;
 
-        v->print(llvm::errs());
-        // v->removeFromParent();
-        auto m = c.get_module();
-        // delete v;
+    auto v = c.top_compile(a);
+
+    v->print(llvm::errs());
+
+    auto m = c.get_module();
+
+    m->setDataLayout(jit->getTargetMachine().createDataLayout());
+    auto fpm = llvm::make_unique<llvm::legacy::FunctionPassManager>(m.get());
+    fpm->add(llvm::createInstructionCombiningPass());
+    fpm->add(llvm::createReassociatePass());
+    fpm->add(llvm::createGVNPass());
+    fpm->add(llvm::createCFGSimplificationPass());
+
+    auto H = jit->addModule(std::move(m));
+
+    auto addr = jit->findSymbol("main").getAddress();
+    if( auto err = addr.takeError()) {
+        llvm::logAllUnhandledErrors(std::move(err), llvm::errs(), "error");
+        return;
     }
 
-    llvm::Value* logErrorV(const char *s)
-    {
-        return nullptr;
-    }
+    Atom (*FP)() = (Atom (*)())(intptr_t)*jit->findSymbol("main").getAddress();
 
+    auto x = FP();
 
+    fmt::print("we got a {}\n", x);
+
+    jit->removeModule(H);
+    // delete v;
+}
+
+llvm::Value *logErrorV(const char *s) { return nullptr; }
 
 #define TRY(x,y) auto x = y; if(is_error(x)) { return x; }
 

@@ -72,7 +72,7 @@ add_executable(minou ${main} ${files})
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 
-llvm_map_components_to_libnames(llvm_libs support core irreader)
+llvm_map_components_to_libnames(llvm_libs target X86 support core irreader orcjit executionengine)
 
 target_compile_features(minou PRIVATE cxx_std_17)
 target_link_libraries(minou readline fmt ${llvm_libs})
