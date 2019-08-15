@@ -121,7 +121,8 @@ public:
 
                     return pn;
                 } else if(sym == "=") {
-
+                }
+                else if(sym == "lambda") {
                 }
             }
             break;
@@ -137,12 +138,57 @@ private:
     std::map<std::string, llvm::Value*> named_values;
 };
 
+class NativeEngine
+{
+    llvm::LLVMContext                           context;
+    std::unique_ptr<llvm::orc::KaleidoscopeJIT> jit;
+
+    void execute(Atom a) {
+        auto module = std::make_unique<llvm::Module>(context);
+        module->setDataLayout(jit->getTargetMachine().createDataLayout());
+
+        std::vector<llvm::Type*> args;
+
+        auto ft = llvm::FunctionType::get(llvm::Type::getInt64Ty(context), args, false);
+
+        auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "anon", module.get());
+
+        auto bb = llvm::BasicBlock::Create(context, "entry", f);
+        llvm::IRBuilder<> builder(context);
+
+        auto v = compile_ir(builder, a);
+
+        auto H = jit->addModule(std::move(module));
+        auto addr = jit->findSymbol("main").getAddress();
+        if( auto err = addr.takeError()) {
+            llvm::logAllUnhandledErrors(std::move(err), llvm::errs(), "error");
+            return;
+        }
+
+        Atom (*FP)() = (Atom (*)())(intptr_t)*addr;
+
+        auto x = FP();
+
+        fmt::print("we got a {}\n", x);
+
+        jit->removeModule(H);
+    }
+public:
+    NativeEngine() {
+        llvm::InitializeNativeTarget();
+        llvm::InitializeNativeTargetAsmPrinter();
+        llvm::InitializeNativeTargetAsmParser();
+        jit = std::make_unique<llvm::orc::KaleidoscopeJIT>();
+    }
+};
+
+
 void compile_llvm(Atom a) {
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmPrinter();
     llvm::InitializeNativeTargetAsmParser();
 
-    auto jit = llvm::make_unique<llvm::orc::KaleidoscopeJIT>();
+    auto jit = std::make_unique<llvm::orc::KaleidoscopeJIT>();
 
     LLVMCompiler c;
 
@@ -167,7 +213,7 @@ void compile_llvm(Atom a) {
         return;
     }
 
-    Atom (*FP)() = (Atom (*)())(intptr_t)*jit->findSymbol("main").getAddress();
+    Atom (*FP)() = (Atom (*)())(intptr_t)*addr;
 
     auto x = FP();
 
