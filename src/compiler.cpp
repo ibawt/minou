@@ -17,6 +17,7 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
+#include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/GVN.h"
 #include <string>
@@ -25,10 +26,27 @@
 
 namespace minou {
 
+extern "C" {
+    int64_t atom_equals(Atom a, Atom b)
+    {
+        return Atom(Boolean(a.value == b.value)).value;
+    }
+
+    int64_t atom_to_int(Atom a)
+    {
+        return a.integer();
+    }
+
+}
+
 class CompilerContext
 {
 public:
-    CompilerContext(llvm::LLVMContext& ctx, llvm::IRBuilder<>& builder) : builder(builder), context(ctx) {}
+    CompilerContext(llvm::LLVMContext& ctx, llvm::IRBuilder<>& builder, llvm::Module*module) : builder(builder), context(ctx), module(module) {}
+
+    llvm::Function* getFunction(const std::string& name) {
+        return module->getFunction(name);
+    }
 
     llvm::Value* compile(Atom a) {
         fmt::print("compiling: {}\n", a);
@@ -53,7 +71,6 @@ public:
 
                     auto elseBB = llvm::BasicBlock::Create(context, "else");
                     auto mergeBB = llvm::BasicBlock::Create(context, "ifcont");
-
                     builder.CreateCondBr(is_boolean, thenBB, elseBB);
 
                     builder.SetInsertPoint(thenBB);
@@ -88,6 +105,76 @@ public:
 
                     return pn;
                 } else if(sym == "=") {
+                    auto x = compile(a.cons()->cdr->car);
+                    auto y = compile(a.cons()->cdr->cdr->car);
+
+                    auto v = builder.CreateICmpEQ(x, y, "=");
+
+                    auto theFunc = builder.GetInsertBlock()->getParent();
+                    auto thenBB = llvm::BasicBlock::Create(context, "then", theFunc);
+
+                    auto elseBB = llvm::BasicBlock::Create(context, "else");
+                    auto mergeBB = llvm::BasicBlock::Create(context, "ifcont");
+
+                    builder.CreateCondBr(v, thenBB, elseBB);
+
+                    builder.SetInsertPoint(thenBB);
+
+                    auto then = llvm::ConstantInt::get(context, llvm::APInt(64, Atom(Boolean(true)).value)); 
+                    if(!then) {
+                        return nullptr;
+                    }
+
+                    builder.CreateBr(mergeBB);
+
+                    thenBB = builder.GetInsertBlock();
+
+                    theFunc->getBasicBlockList().push_back(elseBB);
+                    builder.SetInsertPoint(elseBB);
+
+                    auto elseV = llvm::ConstantInt::get(context, llvm::APInt(64, Atom(Boolean(false)).value));
+                    if(!elseV) {
+                        return nullptr;
+                    }
+
+                    builder.CreateBr(mergeBB);
+                    elseBB = builder.GetInsertBlock();
+
+                    theFunc->getBasicBlockList().push_back(mergeBB);
+                    builder.SetInsertPoint(mergeBB);
+
+                    auto pn = builder.CreatePHI(llvm::Type::getInt64Ty(context), 2, "iftmp");
+
+                    pn->addIncoming(then, thenBB);
+                    pn->addIncoming(elseV, elseBB);
+
+                    return pn;
+
+                    return v;
+                }
+                else if(sym == "+") {
+                    auto x = compile(a.cons()->cdr->car);
+                    auto y = compile(a.cons()->cdr->cdr->car);
+
+                    auto f = getFunction("atom_to_integer");
+
+                    std::vector<llvm::Value*> args;
+                    args.push_back(x);
+
+                    auto xx = builder.CreateCall(f, x);
+
+                    std::vector<llvm::Value*> args1;
+                    args.push_back(y);
+
+                    auto yy = builder.CreateCall(f, y);
+
+                    auto v = builder.CreateAdd(xx, yy);
+
+                    auto vv = builder.CreateLShr(v, llvm::ConstantInt::get(context, llvm::APInt( 64, 3)));
+
+                    auto vvv = builder.CreateOr( vv, llvm::ConstantInt::get(context, llvm::APInt(64, INTEGER)));
+
+                    return vvv;
                 }
                 else if(sym == "lambda") {
                 }
@@ -101,6 +188,7 @@ public:
 private:
     llvm::IRBuilder<>& builder;
     llvm::LLVMContext& context;
+    llvm::Module* module;
     std::map<std::string, llvm::Value*> named_values;
 };
 
@@ -109,9 +197,31 @@ class NativeEngine
     llvm::LLVMContext                           context;
     std::unique_ptr<llvm::orc::KaleidoscopeJIT> jit;
 
+    llvm::Function* primitive(llvm::Module*module) {
+        std::vector<llvm::Type*> args;
+        args.push_back(llvm::Type::getInt64Ty(context));
+
+        auto ft = llvm::FunctionType::get(llvm::Type::getInt64Ty(context), args, false);
+
+        auto f = llvm::Function::Create(ft, llvm::Function::InternalLinkage, "atom_to_integer", module);
+        auto bb = llvm::BasicBlock::Create(context, "entry", f);
+
+        llvm::IRBuilder<> builder(context);
+        builder.SetInsertPoint(bb) ;
+
+        llvm::Value* out;
+        for( auto& i : f->args()) {
+            out = builder.CreateShl(&i, llvm::ConstantInt::get(context, llvm::APInt(64, 3)));
+        }
+
+        builder.CreateRet(out);
+
+        return f;
+    }
 public:
     Atom execute(Atom a) {
         auto module = std::make_unique<llvm::Module>("anon", context);
+        module->setDataLayout(jit->getTargetMachine().createDataLayout());
 
         auto fpm =
             std::make_unique<llvm::legacy::FunctionPassManager>(module.get());
@@ -119,7 +229,11 @@ public:
         fpm->add(llvm::createReassociatePass());
         fpm->add(llvm::createGVNPass());
         fpm->add(llvm::createCFGSimplificationPass());
+        fpm->add(llvm::createFunctionInliningPass());
         fpm->doInitialization();
+
+        auto prim = primitive(module.get());
+        fpm->run(*prim);
 
         std::vector<llvm::Type*> args;
 
@@ -131,9 +245,11 @@ public:
         llvm::IRBuilder<> builder(context);
         builder.SetInsertPoint(bb) ;
 
-        CompilerContext compiler(context, builder);
+        CompilerContext compiler(context, builder, module.get());
         auto v = compiler.compile(a);
         builder.CreateRet(v);
+
+        fpm->run(*f);
 
         f->print(llvm::errs());
 
@@ -145,7 +261,8 @@ public:
             assert(false);
         }
 
-        module->setDataLayout(jit->getTargetMachine().createDataLayout());
+
+
         auto H = jit->addModule(std::move(module));
         fmt::print("addModule: {}\n", H);
 
@@ -175,8 +292,6 @@ public:
     }
 };
 
-
-#define TRY(x,y) auto x = y; if(is_error(x)) { return x; }
 
 Result<std::vector<uint8_t>> apply_tailcalls(std::vector<uint8_t> &inst) {
     std::vector<uint8_t> out;
