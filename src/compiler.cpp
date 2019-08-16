@@ -18,7 +18,9 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/IPO.h"
+#include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Scalar/GVN.h"
 #include <string>
 #include <map>
@@ -170,7 +172,7 @@ public:
 
                     auto v = builder.CreateAdd(xx, yy);
 
-                    auto vv = builder.CreateLShr(v, llvm::ConstantInt::get(context, llvm::APInt( 64, 3)));
+                    auto vv = builder.CreateShl(v, llvm::ConstantInt::get(context, llvm::APInt( 64, 3)));
 
                     auto vvv = builder.CreateOr( vv, llvm::ConstantInt::get(context, llvm::APInt(64, INTEGER)));
 
@@ -203,7 +205,7 @@ class NativeEngine
 
         auto ft = llvm::FunctionType::get(llvm::Type::getInt64Ty(context), args, false);
 
-        auto f = llvm::Function::Create(ft, llvm::Function::InternalLinkage, "atom_to_integer", module);
+        auto f = llvm::Function::Create(ft, llvm::Function::PrivateLinkage, "atom_to_integer", module);
         auto bb = llvm::BasicBlock::Create(context, "entry", f);
 
         llvm::IRBuilder<> builder(context);
@@ -211,7 +213,7 @@ class NativeEngine
 
         llvm::Value* out;
         for( auto& i : f->args()) {
-            out = builder.CreateShl(&i, llvm::ConstantInt::get(context, llvm::APInt(64, 3)));
+            out = builder.CreateLShr(&i, llvm::ConstantInt::get(context, llvm::APInt(64, 3)));
         }
 
         builder.CreateRet(out);
@@ -222,18 +224,25 @@ public:
     Atom execute(Atom a) {
         auto module = std::make_unique<llvm::Module>("anon", context);
         module->setDataLayout(jit->getTargetMachine().createDataLayout());
+        module->setTargetTriple(jit->getTargetMachine().getTargetTriple().str());
+
+        // llvm::ModulePassManager mpm;
+        llvm::legacy::PassManager mpm;
+        llvm::PassManagerBuilder pmBuilder;
+        pmBuilder.Inliner = llvm::createFunctionInliningPass();
+        pmBuilder.OptLevel = 2;
+        pmBuilder.populateModulePassManager(mpm);
 
         auto fpm =
             std::make_unique<llvm::legacy::FunctionPassManager>(module.get());
-        fpm->add(llvm::createInstructionCombiningPass());
-        fpm->add(llvm::createReassociatePass());
-        fpm->add(llvm::createGVNPass());
-        fpm->add(llvm::createCFGSimplificationPass());
-        fpm->add(llvm::createFunctionInliningPass());
+        // fpm->add(llvm::createPromoteMemoryToRegisterPass());
+        // fpm->add(llvm::createInstructionCombiningPass());
+        // fpm->add(llvm::createReassociatePass());
+        // fpm->add(llvm::createGVNPass());
+        // fpm->add(llvm::createCFGSimplificationPass());
         fpm->doInitialization();
 
         auto prim = primitive(module.get());
-        fpm->run(*prim);
 
         std::vector<llvm::Type*> args;
 
@@ -249,13 +258,24 @@ public:
         auto v = compiler.compile(a);
         builder.CreateRet(v);
 
-        fpm->run(*f);
+        // fpm->run(*f);
+
+
+        for( auto &F : *module.get()) {
+            fpm->run(F);
+        }
+
+        mpm.run(*module.get());
+
+        fpm->doFinalization();
 
         f->print(llvm::errs());
 
         if( llvm::verifyFunction(*f, &llvm::errs()) ) {
             assert(false);
         }
+
+        // fpm->run(*f);
 
         if( llvm::verifyModule(*module.get(), &llvm::errs()) ) {
             assert(false);
