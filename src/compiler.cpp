@@ -25,43 +25,10 @@
 
 namespace minou {
 
-class LLVMCompiler
+class CompilerContext
 {
 public:
-    LLVMCompiler() : builder(context) {
-        module = llvm::make_unique<llvm::Module>("my thing", context);
-    }
-
-    ~LLVMCompiler() {
-        module.reset();
-    }
-
-    llvm::Function* top_compile(Atom a) {
-        std::vector<llvm::Type*> args;
-        auto ft = llvm::FunctionType::get(llvm::Type::getInt64Ty(context), args, false);
-
-        auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "main", module.get());
-
-        auto bb = llvm::BasicBlock::Create(context, "entry", f);
-        builder.SetInsertPoint(bb);
-
-        auto v = compile(a);
-        if(! v) {
-            return nullptr;
-        }
-
-        builder.CreateRet(v);
-
-        if(llvm::verifyFunction(*f, &llvm::errs())) {
-            fmt::print("failed verification\n");
-        }
-
-        return f;
-    }
-
-    std::unique_ptr<llvm::Module> get_module() {
-        return std::move(module);
-    }
+    CompilerContext(llvm::LLVMContext& ctx, llvm::IRBuilder<>& builder) : builder(builder), context(ctx) {}
 
     llvm::Value* compile(Atom a) {
         fmt::print("compiling: {}\n", a);
@@ -132,9 +99,8 @@ public:
         return nullptr;
     }
 private:
-    std::unique_ptr<llvm::Module> module;
-    llvm::IRBuilder<> builder;
-    llvm::LLVMContext context;
+    llvm::IRBuilder<>& builder;
+    llvm::LLVMContext& context;
     std::map<std::string, llvm::Value*> named_values;
 };
 
@@ -143,37 +109,64 @@ class NativeEngine
     llvm::LLVMContext                           context;
     std::unique_ptr<llvm::orc::KaleidoscopeJIT> jit;
 
-    void execute(Atom a) {
-        auto module = std::make_unique<llvm::Module>(context);
-        module->setDataLayout(jit->getTargetMachine().createDataLayout());
+public:
+    Atom execute(Atom a) {
+        auto module = std::make_unique<llvm::Module>("anon", context);
+
+        auto fpm =
+            std::make_unique<llvm::legacy::FunctionPassManager>(module.get());
+        fpm->add(llvm::createInstructionCombiningPass());
+        fpm->add(llvm::createReassociatePass());
+        fpm->add(llvm::createGVNPass());
+        fpm->add(llvm::createCFGSimplificationPass());
+        fpm->doInitialization();
 
         std::vector<llvm::Type*> args;
 
         auto ft = llvm::FunctionType::get(llvm::Type::getInt64Ty(context), args, false);
 
-        auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "anon", module.get());
-
+        auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "expression", module.get());
         auto bb = llvm::BasicBlock::Create(context, "entry", f);
+
         llvm::IRBuilder<> builder(context);
+        builder.SetInsertPoint(bb) ;
 
-        auto v = compile_ir(builder, a);
+        CompilerContext compiler(context, builder);
+        auto v = compiler.compile(a);
+        builder.CreateRet(v);
 
-        auto H = jit->addModule(std::move(module));
-        auto addr = jit->findSymbol("main").getAddress();
-        if( auto err = addr.takeError()) {
-            llvm::logAllUnhandledErrors(std::move(err), llvm::errs(), "error");
-            return;
+        f->print(llvm::errs());
+
+        if( llvm::verifyFunction(*f, &llvm::errs()) ) {
+            assert(false);
         }
 
+        if( llvm::verifyModule(*module.get(), &llvm::errs()) ) {
+            assert(false);
+        }
+
+        module->setDataLayout(jit->getTargetMachine().createDataLayout());
+        auto H = jit->addModule(std::move(module));
+        fmt::print("addModule: {}\n", H);
+
+        auto s = jit->findSymbol("expression");
+
+        auto addr = jit->findSymbol("expression").getAddress();
+        if( auto err = addr.takeError()) {
+            llvm::logAllUnhandledErrors(std::move(err), llvm::errs(), "error");
+            assert(false);
+        }
+        fmt::print("addr is: {}\n", *addr);
         Atom (*FP)() = (Atom (*)())(intptr_t)*addr;
 
         auto x = FP();
 
         fmt::print("we got a {}\n", x);
 
-        jit->removeModule(H);
+        // jit->removeModule(H);
+
+        return x;
     }
-public:
     NativeEngine() {
         llvm::InitializeNativeTarget();
         llvm::InitializeNativeTargetAsmPrinter();
@@ -182,48 +175,6 @@ public:
     }
 };
 
-
-void compile_llvm(Atom a) {
-    llvm::InitializeNativeTarget();
-    llvm::InitializeNativeTargetAsmPrinter();
-    llvm::InitializeNativeTargetAsmParser();
-
-    auto jit = std::make_unique<llvm::orc::KaleidoscopeJIT>();
-
-    LLVMCompiler c;
-
-    auto v = c.top_compile(a);
-
-    v->print(llvm::errs());
-
-    auto m = c.get_module();
-
-    m->setDataLayout(jit->getTargetMachine().createDataLayout());
-    auto fpm = llvm::make_unique<llvm::legacy::FunctionPassManager>(m.get());
-    fpm->add(llvm::createInstructionCombiningPass());
-    fpm->add(llvm::createReassociatePass());
-    fpm->add(llvm::createGVNPass());
-    fpm->add(llvm::createCFGSimplificationPass());
-
-    auto H = jit->addModule(std::move(m));
-
-    auto addr = jit->findSymbol("main").getAddress();
-    if( auto err = addr.takeError()) {
-        llvm::logAllUnhandledErrors(std::move(err), llvm::errs(), "error");
-        return;
-    }
-
-    Atom (*FP)() = (Atom (*)())(intptr_t)*addr;
-
-    auto x = FP();
-
-    fmt::print("we got a {}\n", x);
-
-    jit->removeModule(H);
-    // delete v;
-}
-
-llvm::Value *logErrorV(const char *s) { return nullptr; }
 
 #define TRY(x,y) auto x = y; if(is_error(x)) { return x; }
 
@@ -482,7 +433,10 @@ Result<std::vector<uint8_t>> compile(Engine *engine, Atom a, Env *env)
     Compiler c;
 
     fmt::print("LLVM->\n");
-    compile_llvm(a);
+
+    NativeEngine ne;
+    auto x = ne.execute(a);
+
     fmt::print("\nEND LLVM\n");
 
     auto e = c.compile(engine, a, env);
