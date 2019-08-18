@@ -11,6 +11,7 @@
 #include "memory.hpp"
 #include "types.hpp"
 #include <vector>
+#include <string>
 
 namespace minou {
 
@@ -90,7 +91,15 @@ class Lambda : public Procedure {
 
     Env* get_env() const { return env; }
 
+    const std::string& get_native_name() const { return nativeName; }
+    void set_native_name(std::string s) { nativeName = s ; }
+
+    void* get_function_pointer() { return functionPointer; }
+    void set_function_pointer(void* i) { functionPointer = i; }
+
   private:
+    void*       functionPointer;
+    std::string nativeName;
     std::vector<uint8_t> compiled_body;
     Cons *variables;
     Cons *body;

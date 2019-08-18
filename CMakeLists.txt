@@ -67,7 +67,8 @@ set(files
   src/compiler.cpp
   )
 
-add_executable(minou ${main} ${files})
+add_library(minou ${files})
+add_executable(mli ${main})
 
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
@@ -75,11 +76,13 @@ add_definitions(${LLVM_DEFINITIONS})
 llvm_map_components_to_libnames(llvm_libs target X86 support core irreader orcjit executionengine ipo)
 
 target_compile_features(minou PRIVATE cxx_std_17)
-target_link_libraries(minou readline fmt ${llvm_libs})
+target_compile_features(mli PRIVATE cxx_std_17)
+target_link_libraries(mli minou readline fmt ${llvm_libs})
 
 # # Add test cpp file
-add_executable( minou-tests t/test_main.cpp ${files})
-# # Link test executable against gtest & gtest_main
+add_executable( minou-tests t/test_main.cpp)
+# # # Link test executable against gtest & gtest_main
 target_compile_features(minou-tests PRIVATE cxx_std_17)
-target_link_libraries(minou-tests gtest gtest_main fmt ${llvm_libs})
+target_link_libraries(minou-tests minou gtest gtest_main fmt ${llvm_libs})
+
 include_directories("src/" "vendor/fmt/include" ${LLVM_INCLUDE_DIRS})
