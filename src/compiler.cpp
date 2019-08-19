@@ -165,13 +165,21 @@ public:
 
                     return vvv;
                 }
+                else if(sym == "begin") {
+                    for( auto c : *a.cons()->cdr) {
+                        auto v = compile(c->car);
+                        if(!c->cdr) {
+                            return v;
+                        }
+                    }
+                }
                 else if(sym == "lambda") {
 
                     auto name = fmt::format("lambda_{}", lambdaCounter++);
                     {
                         std::vector<llvm::Type *> args(a.cons()->cdr->car.cons()->length(), llvm::Type::getInt64Ty(context));
 
-                        fmt::print("args length: {}\n", args.size());
+                        fmt::print("lambda args length: {}\n", args.size());
                         auto ft = llvm::FunctionType::get(
                             llvm::Type::getInt64Ty(context), args, false);
                         auto f = llvm::Function::Create(
@@ -192,7 +200,10 @@ public:
                         CompilerContext compiler(context, cbuilder, module,
                                                  engine, env);
 
-                        auto v = compiler.compile(a.cons()->cdr->cdr);
+                        Cons* body = engine->get_memory().alloc_cons(Symbol("begin"), a.cons()->cdr->cdr);
+
+
+                        auto v = compiler.compile(body);
                         cbuilder.CreateRet(v);
 
                         f->print(llvm::errs());
@@ -465,7 +476,8 @@ public:
 
         for( auto [key,value] : compiler.get_lambdas()) {
             auto x = jit->findSymbol(value->get_native_name());
-            if( auto err = x.takeError()) {
+            fmt::print("trying to find: {}\n", value->get_native_name());
+            if( auto err = x.getAddress().takeError()) {
                 assert(false);
             }
             value->set_function_pointer((void*)(*x.getAddress()));
