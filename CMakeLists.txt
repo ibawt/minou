@@ -71,7 +71,7 @@ add_library(minou ${files})
 add_executable(mli ${main})
 
 include_directories(${LLVM_INCLUDE_DIRS})
-add_definitions(${LLVM_DEFINITIONS})
+add_definitions(${LLVM_DEFINITIONS} -fPIC)
 
 llvm_map_components_to_libnames(llvm_libs target X86 support core irreader orcjit executionengine ipo)
 

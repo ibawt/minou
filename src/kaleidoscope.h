@@ -29,11 +29,10 @@
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
-#include <algorithm>
-#include <map>
 #include <memory>
 #include <string>
 #include <vector>
+#include <cstdio>
 
 namespace llvm {
 namespace orc {
@@ -47,7 +46,13 @@ public:
       : Resolver(createLegacyLookupResolver(
             ES,
             [this](const std::string &Name) {
-              return ObjectLayer.findSymbol(Name, true);
+              auto sym = ObjectLayer.findSymbol(Name, true);
+              if(!sym) {
+                  if( auto symAddr = RTDyldMemoryManager::getSymbolAddressInProcess(Name)) {
+                      return JITSymbol(symAddr, JITSymbolFlags::Exported);
+                  }
+              }
+              return sym;
             },
             [](Error Err) { cantFail(std::move(Err), "lookupFlags failed"); })),
         TM(EngineBuilder().selectTarget()), DL(TM->createDataLayout()),
@@ -109,9 +114,11 @@ private:
       if (auto Sym = CompileLayer.findSymbolIn(H, Name, ExportedSymbolsOnly))
         return Sym;
 
+    printf("didn't fidn in modules, looking in process\n");
     // If we can't find the symbol in the JIT, try looking in the host process.
-    if (auto SymAddr = RTDyldMemoryManager::getSymbolAddressInProcess(Name))
+    if (auto SymAddr = RTDyldMemoryManager::getSymbolAddressInProcess(Name)) {
       return JITSymbol(SymAddr, JITSymbolFlags::Exported);
+    }
 
 #ifdef _WIN32
     // For Windows retry without "_" at beginning, as RTDyldMemoryManager uses

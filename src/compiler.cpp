@@ -28,10 +28,24 @@
 
 namespace minou {
 
+#define API __attribute__((visibility("default")))
 extern "C" {
-    void* get_function_pointer(void* x)
+    API int64_t lambda_get_function_pointer(int64_t x)
     {
-        return ((Lambda*)x)->get_function_pointer();
+        return (int64_t)((Lambda*)x)->get_function_pointer();
+    }
+
+    API int64_t env_set(Env* env, Atom sym, Atom value) {
+        env->set(sym.symbol(), value);
+        return sym.value;
+    }
+
+    API int64_t env_get(Env *env, Atom sym) {
+        auto x = env->lookup(sym.symbol());
+        if( x.has_value()) {
+            return x.value().value;
+        }
+        return Atom().value;
     }
 }
 
@@ -62,7 +76,7 @@ public:
                     if(!pred) {
                         return nullptr;
                     }
-                    auto is_boolean = builder.CreateICmpNE(pred, llvm::ConstantInt::get(context, llvm::APInt(64, Atom(Boolean(false)).value)), "ifcond");
+                    auto is_boolean = builder.CreateICmpNE(pred, constant_atom(Boolean(false)), "ifcond");
 
                     auto theFunc = builder.GetInsertBlock()->getParent();
                     auto thenBB = llvm::BasicBlock::Create(context, "then", theFunc);
@@ -96,7 +110,7 @@ public:
                     theFunc->getBasicBlockList().push_back(mergeBB);
                     builder.SetInsertPoint(mergeBB);
 
-                    auto pn = builder.CreatePHI(llvm::Type::getInt64Ty(context), 2, "iftmp");
+                    auto pn = builder.CreatePHI(atom_type(), 2, "iftmp");
 
                     pn->addIncoming(then, thenBB);
                     pn->addIncoming(elseV, elseBB);
@@ -118,7 +132,7 @@ public:
 
                     builder.SetInsertPoint(thenBB);
 
-                    auto then = llvm::ConstantInt::get(context, llvm::APInt(64, Atom(Boolean(true)).value)); 
+                    auto then = constant_atom(Boolean(true));
                     if(!then) {
                         return nullptr;
                     }
@@ -130,7 +144,7 @@ public:
                     theFunc->getBasicBlockList().push_back(elseBB);
                     builder.SetInsertPoint(elseBB);
 
-                    auto elseV = llvm::ConstantInt::get(context, llvm::APInt(64, Atom(Boolean(false)).value));
+                    auto elseV = constant_atom(Boolean(false));
                     if(!elseV) {
                         return nullptr;
                     }
@@ -141,14 +155,12 @@ public:
                     theFunc->getBasicBlockList().push_back(mergeBB);
                     builder.SetInsertPoint(mergeBB);
 
-                    auto pn = builder.CreatePHI(llvm::Type::getInt64Ty(context), 2, "iftmp");
+                    auto pn = builder.CreatePHI(atom_type(), 2, "iftmp");
 
                     pn->addIncoming(then, thenBB);
                     pn->addIncoming(elseV, elseBB);
 
                     return pn;
-
-                    return v;
                 }
                 else if(sym == "+") {
                     auto x = compile(a.cons()->cdr->car);
@@ -179,7 +191,6 @@ public:
                     {
                         std::vector<llvm::Type *> args(a.cons()->cdr->car.cons()->length(), llvm::Type::getInt64Ty(context));
 
-                        fmt::print("lambda args length: {}\n", args.size());
                         auto ft = llvm::FunctionType::get(
                             llvm::Type::getInt64Ty(context), args, false);
                         auto f = llvm::Function::Create(
@@ -238,7 +249,7 @@ public:
                     auto l = compile(a.cons()->car);
 
                     auto fp = builder.CreateCall(
-                        module->getFunction("get_function_pointer"), l);
+                        module->getFunction("lambda_get_function_pointer"), l);
 
                     auto ll = builder.CreateIntToPtr(
                         fp,
@@ -266,7 +277,11 @@ public:
 
                 auto l = compile(a.cons()->car);
 
-                auto fp = builder.CreateCall( module->getFunction("get_function_pointer"), l);
+                auto f = module->getFunction("lambda_get_function_pointer");
+                fmt::print("moduel is a: {}\n", (void*)f);
+                f->print(llvm::errs());
+
+                auto fp = builder.CreateCall( f, l);
 
                 auto ll = builder.CreateIntToPtr(fp, llvm::FunctionType::get( llvm::Type::getInt64Ty(context), funcArgs, false)->getPointerTo());
 
@@ -276,9 +291,27 @@ public:
             }
             break;
         default:
-            return llvm::ConstantInt::get(context, llvm::APInt(64, a.value));
+            if( a.get_type() == AtomType::Symbol) {
+                auto f = builder.GetInsertBlock()->getParent();
+
+                for( auto& arg : f->args()) {
+                    if( arg.getName() == a.symbol().string()) {
+                        fmt::print("resolving {} to an argument\n", arg.getName().str());
+                        return &arg;
+                    }
+                }
+            }
+            return constant_atom(a);
         }
         return nullptr;
+    }
+
+    llvm::Type* atom_type() {
+        return llvm::Type::getInt64Ty(context);
+    }
+
+    llvm::Value* constant_atom(Atom a) {
+        return llvm::ConstantInt::get(context, llvm::APInt(64, a.value));
     }
 
     std::map<std::string, Lambda*>& get_lambdas() { return lambdas; }
@@ -302,27 +335,10 @@ class NativeEngine
     llvm::Function* get_function_pointer(llvm::Module *m) {
         auto ft =
             llvm::FunctionType::get(llvm::Type::getInt64Ty(context),
-                                    {llvm::Type::getInt64Ty(context)}, false);
+                                    llvm::Type::getInt64Ty(context), false);
 
         auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage,
-                                        "get_function_pointer", m);
-
-        // auto bb = llvm::BasicBlock::Create(context, "entry", f);
-
-        // llvm::IRBuilder<> builder(context);
-        // builder.SetInsertPoint(bb);
-        // llvm::Value *arg;
-        // for (auto &i : f->args()) {
-        //     arg = &i;
-        // }
-
-        // auto x = builder.CreateAdd(arg, llvm::ConstantInt::get(context, llvm::APInt(64, 0)));
-
-        // auto casted = builder.CreateIntToPtr(x, llvm::Type::getInt64PtrTy(context));
-
-        // auto v = builder.CreateLoad( casted, "function pointer");
-
-        // builder.CreateRet(v);
+                                        "lambda_get_function_pointer", m);
 
         return f;
     }
@@ -451,15 +467,13 @@ public:
         //     fpm->run(F);
         // }
 
-        // mpm.run(*module.get());
+        mpm.run(*module.get());
 
         for (auto &F : *module.get()) {
             F.print(llvm::errs());
         }
 
-        fpm->doFinalization();
-
-        f->print(llvm::errs());
+        // fpm->doFinalization();
 
         if( llvm::verifyFunction(*f, &llvm::errs()) ) {
             assert(false);
@@ -474,6 +488,14 @@ public:
         auto H = jit->addModule(std::move(module));
         fmt::print("addModule: {}\n", H);
 
+        auto s = jit->findSymbol("expression");
+
+        auto addr = jit->findSymbol("expression").getAddress();
+
+        if( auto err = addr.takeError()) {
+            llvm::logAllUnhandledErrors(std::move(err), llvm::errs(), "error");
+            // assert(false);
+        }
         for( auto [key,value] : compiler.get_lambdas()) {
             auto x = jit->findSymbol(value->get_native_name());
             fmt::print("trying to find: {}\n", value->get_native_name());
@@ -483,13 +505,6 @@ public:
             value->set_function_pointer((void*)(*x.getAddress()));
         }
 
-        auto s = jit->findSymbol("expression");
-
-        auto addr = jit->findSymbol("expression").getAddress();
-        if( auto err = addr.takeError()) {
-            llvm::logAllUnhandledErrors(std::move(err), llvm::errs(), "error");
-            assert(false);
-        }
         fmt::print("addr is: {}\n", *addr);
         Atom (*FP)() = (Atom (*)())(intptr_t)*addr;
 
