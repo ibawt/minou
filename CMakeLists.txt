@@ -60,9 +60,6 @@ set(files
   src/eval.hpp
   src/symbol_intern.hpp
   src/symbol_interner.cpp
-  src/bytecode.hpp
-  src/vm.hpp
-  src/vm.cpp
   src/compiler.hpp
   src/compiler.cpp
   )

@@ -18,9 +18,10 @@ Result<Atom> Engine::eval(const std::string_view &s) {
         return atom;
     }
 
-    BottomCont cont;
+    return nativeEngine.execute(get_value(atom));
+    // BottomCont cont;
 
-    return minou::eval(this, get_atom(atom), global.get(), &cont);
+    // return minou::eval(this, get_atom(atom), global.get(), &cont);
 }
 
 } // namespace minou

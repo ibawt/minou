@@ -7,13 +7,13 @@
 #include "minou.hpp"
 #include "parser.hpp"
 #include <cstdlib>
-#include "vm.hpp"
+#include "engine.hpp"
 #include "compiler.hpp"
 
 using namespace minou;
 
 int main() {
-    VM vm;
+    Engine engine;
 
     for (;;) {
         auto line = readline(">");
@@ -22,7 +22,7 @@ int main() {
             break;
         }
 
-        auto result = vm.run(line);
+        auto result = engine.eval(line);
 
         if (!is_error(result)) {
             fmt::print("-> {}\n", get_value(result));

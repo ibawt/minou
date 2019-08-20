@@ -3,6 +3,7 @@
 
 #include "env.hpp"
 #include "eval.hpp"
+#include "compiler.hpp"
 #include "symbol_intern.hpp"
 #include "memory.hpp"
 #include <string>
@@ -11,6 +12,7 @@ namespace minou {
 
 class Engine {
   public:
+    Engine() : nativeEngine(this, global.get()) {}
     ~Engine() {
         global->clear();
         memory.mark_and_sweep(global.get());
@@ -33,6 +35,8 @@ class Engine {
     SymbolInterner syms;
     Memory memory;
     std::unique_ptr<Env> global = std::make_unique<Env>(this);
+
+    NativeEngine nativeEngine;
 };
 
 } // namespace minou
