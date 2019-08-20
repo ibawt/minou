@@ -1,7 +1,7 @@
 FROM debian:buster-slim
 
 RUN apt-get update -y
-RUN apt-get install libreadline-dev build-essential cmake git -y
+RUN apt-get install libreadline-dev build-essential cmake git llvm-8 -y
 
 COPY . /minou
 
