@@ -192,6 +192,8 @@ struct Atom {
     }
     Atom(Function *f) : value((intptr_t)f) { set_type(AtomType::Function); }
 
+    // Atom(const Atom& other)  = delete;
+
     uintptr_t value;
 
     void set_tag(int tag) {

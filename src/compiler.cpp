@@ -1,4 +1,5 @@
 #include "compiler.hpp"
+#include <llvm/IRReader/IRReader.h>
 #include <vector>
 #include "eval.hpp"
 #include "engine.hpp"
@@ -32,25 +33,31 @@ namespace minou {
 extern "C" {
     API int64_t lambda_get_function_pointer(int64_t x)
     {
-        return (int64_t)((Lambda*)x)->get_function_pointer();
+        auto y =  (int64_t)((Lambda*)x)->get_function_pointer();
+        fmt::print("function pointer of {:x}: {:x}\n", (intptr_t)x, y);
+        assert(y);
+        return y;
     }
 
     API int64_t env_set(Env* env, Atom sym, Atom value) {
         env->set(sym.symbol(), value);
+        fmt::print("setting {} to {:x}\n", sym, value.value);
         return sym.value;
     }
 
     API int64_t env_get(Env *env, Atom sym) {
         auto x = env->lookup(sym.symbol());
         if( x.has_value()) {
+            fmt::print("env_get: {} = {:x}, type: {}\n", sym, x.value().value, (int)x.value().get_type());
             return x.value().value;
         }
+        assert(false);
         return Atom().value;
     }
 
     API int64_t lambda_get_env_pointer(int64_t t) {
         auto x =  (int64_t)((Lambda*)t)->get_env();
-        fmt::print("x = {}\n", x);
+        fmt::print("get_env_ptr = 0x{:x}\n", x);
         return x;
     }
 }
@@ -194,6 +201,16 @@ public:
 
                     return vvv;
                 }
+                else if( sym == "define") {
+                    auto sym = a.cons()->cdr->car;
+
+                    auto value = compile(a.cons()->cdr->cdr->car);
+                    if( is_error(value)) return value;
+
+                    auto f = module->getFunction("env_set");
+
+                    return builder.CreateCall(f, {get_env(), constant_atom(sym), get_value(value)});
+                }
                 else if(sym == "begin") {
                     for( auto c : *a.cons()->cdr) {
                         auto v = compile(c->car);
@@ -225,16 +242,19 @@ public:
 
                         auto it = f->args().begin();
                         it->setName("env");
-                        auto envValue = &*it;
+
+                        auto envValue = it;
                         it++;
 
                         for (; it != f->args().end() ; ++it) {
                             it->setName(c->car.symbol().string());
-                            cbuilder.CreateCall(module->getFunction("env_set"), {envValue, constant_atom(c->car), &*it});
-                            envArgs.push_back(&*it);
+                            cbuilder.CreateCall(module->getFunction("env_set"), {envValue, constant_atom(c->car), it});
+                            envArgs.push_back(it);
                             c = c->cdr;
                         }
                         auto e = new Env(env);
+
+                        fmt::print("lambda() new env is: 0x{:x}\n", (intptr_t)e);
 
                         CompilerContext compiler(context, cbuilder, module,
                                                  engine, e);
@@ -245,83 +265,29 @@ public:
                         if( is_error(v)) return v;
                         cbuilder.CreateRet(get_value(v));
 
-                        f->print(llvm::errs());
-
                         if( llvm::verifyFunction(*f, &llvm::errs()) ) {
                             return "error in lambda verify";
                         }
+
+                        auto l = engine->get_memory().alloc<Lambda>(a.cons()->cdr, a.cons()->cdr->cdr, e);
+                        l->set_native_name(name);
+
+                        fmt::print("alloacted lambda is: {:x}\n", (intptr_t)l);
+                        for( auto [key, value] : compiler.get_lambdas()) {
+                            lambdas[key] = value;
+                        }
+
+                        lambdas[name] = l;
+
+                        return llvm::ConstantInt::get(context, llvm::APInt(64, Atom(l).value));
                     }
 
-                    auto l = engine->get_memory().alloc<Lambda>(a.cons()->cdr, a.cons()->cdr->cdr, env);
-                    l->set_native_name(name);
-
-                    lambdas[name] = l;
-
-                    return llvm::ConstantInt::get(context, llvm::APInt(64, Atom(l).value));
                 }
                 else {
-                    assert("is it this one?");
-                    fmt::print("calling a function\n");
-                    std::vector<llvm::Value *> args;
-                    std::vector<llvm::Type *> funcArgs;
-                    for (auto c : *a.cons()->cdr) {
-                        auto v = compile(c->car);
-                        if(is_error(v)) {
-                            return v;
-                        }
-                        args.push_back(get_value(v));
-                        funcArgs.push_back(llvm::Type::getInt64Ty(context));
-                    }
-
-                    auto l = compile(a.cons()->car);
-                    if(is_error(l)) {
-                        return l;
-                    }
-
-                    auto fp = builder.CreateCall(
-                        module->getFunction("lambda_get_function_pointer"), get_value(l));
-
-                    auto ll = builder.CreateIntToPtr(
-                        fp,
-                        llvm::FunctionType::get(llvm::Type::getInt64Ty(context),
-                                                funcArgs, false)
-                            ->getPointerTo());
-
-                    auto v = builder.CreateCall(ll, args);
-
-                    return v;
+                    return compile_application(a);
                 }
             } else {
-                std::vector<llvm::Value*> args;
-                std::vector<llvm::Type*> funcArgs;
-
-                auto l = compile(a.cons()->car);
-                if (is_error(l))
-                    return l;
-
-                auto f = module->getFunction("lambda_get_function_pointer");
-                auto fp = builder.CreateCall(f, get_value(l));
-
-                auto ep = module->getFunction("lambda_get_env_pointer");
-                auto fenv = builder.CreateCall(ep, get_value(l));
-
-                args.push_back(fenv);
-                funcArgs.push_back(atom_type());
-
-                for( auto c : *a.cons()->cdr) {
-                    auto v = compile(c->car);
-                    if( is_error(v)) {
-                        return v;
-                    }
-                    args.push_back(get_value(v));
-                    funcArgs.push_back(llvm::Type::getInt64Ty(context));
-                }
-
-
-                auto ll = builder.CreateIntToPtr(fp, llvm::FunctionType::get( llvm::Type::getInt64Ty(context), funcArgs, false)->getPointerTo());
-                auto v = builder.CreateCall(ll, args);
-
-                return v;
+                return compile_application(a);
             }
             break;
         default:
@@ -338,6 +304,42 @@ public:
             return constant_atom(a);
         }
         return "shouldn't get here";
+    }
+
+    Result<llvm::Value*> compile_application(Atom a) {
+        std::vector<llvm::Value*> args;
+        std::vector<llvm::Type*> funcArgs;
+
+        auto l = compile(a.cons()->car);
+        if (is_error(l))
+            return l;
+
+        auto f = module->getFunction("lambda_get_function_pointer");
+        auto fp = builder.CreateCall(f, get_value(l));
+
+        auto ep = module->getFunction("lambda_get_env_pointer");
+        auto fenv = builder.CreateCall(ep, get_value(l));
+
+        args.push_back(fenv);
+        funcArgs.push_back(atom_type());
+
+        for( auto c : *a.cons()->cdr) {
+            auto v = compile(c->car);
+            if( is_error(v)) {
+                return v;
+            }
+            args.push_back(get_value(v));
+            funcArgs.push_back(llvm::Type::getInt64Ty(context));
+        }
+
+
+        auto ll = builder.CreateIntToPtr(fp, llvm::FunctionType::get( llvm::Type::getInt64Ty(context), funcArgs, false)->getPointerTo());
+        auto v = builder.CreateCall(ll, args);
+
+        return v;
+    }
+    llvm::Value* get_env() {
+        return builder.GetInsertBlock()->getParent()->args().begin();
     }
 
     llvm::Type* atom_type() {
@@ -520,6 +522,7 @@ public:
         llvm::IRBuilder<> builder(context);
         builder.SetInsertPoint(bb) ;
 
+        fmt::print("main env is 0x{:x}\n", (intptr_t)env);
         CompilerContext compiler(context, builder, module.get(), engine, env);
         auto v = compiler.compile(a);
         if( is_error(v)) {
@@ -558,7 +561,7 @@ public:
             llvm::logAllUnhandledErrors(std::move(err), llvm::errs(), "error");
             return "error finding expression symbol";
         }
-        for( auto [key,value] : compiler.get_lambdas()) {
+        for( auto& [key,value] : compiler.get_lambdas()) {
             auto x = jit->findSymbol(value->get_native_name());
             fmt::print("trying to find: {}\n", value->get_native_name());
             if( auto err = x.getAddress().takeError()) {
@@ -566,9 +569,19 @@ public:
             }
             value->set_function_pointer((void*)(*x.getAddress()));
         }
+        fmt::print("expression address: {}\n", *addr);
 
         Atom (*FP)(Env*) = (Atom (*)(Env*))(intptr_t)*addr;
+        env->for_each([](auto key, auto value) -> void {
+                          fmt::print("ENV {} = {:x}\n", key, value.value);
+                      });
+
         auto x = FP(env);
+
+        fmt::print("AFTER ()\n");
+        env->for_each([](auto key, auto value) -> void {
+                          fmt::print("ENV {} = {:x}\n", key, value.value);
+                      });
         return x;
     }
     NativeEngine(Engine *engine, Env *env) : engine(engine), env(env) {
@@ -845,12 +858,13 @@ Result<std::vector<uint8_t>> compile(Engine *engine, Atom a, Env *env)
 
     fmt::print("\nEND LLVM\n");
 
-    auto e = c.compile(engine, a, env);
-    if (is_error(e)) {
-        return get_error(e);
-    }
+    // auto e = c.compile(engine, a, env);
+    // if (is_error(e)) {
+    //     return get_error(e);
+    // }
 
-    return apply_tailcalls(c.buffer);
+    // return apply_tailcalls(c.buffer);
+    return "whoops";
 }
 
 } // namespace minou

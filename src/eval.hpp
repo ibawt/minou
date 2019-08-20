@@ -64,6 +64,8 @@ class Lambda : public Procedure {
     Lambda(Cons *variables, Cons *body, EnvPtr env)
         : variables(variables), body(body), env(env) {}
 
+    Lambda(const Lambda& r) = delete;
+
     Lambda(Cons *variables, Cons *body, EnvPtr env, std::vector<uint8_t> compiled_body)
         : variables(variables), body(body), env(env) , compiled_body(compiled_body) {}
 
@@ -94,8 +96,12 @@ class Lambda : public Procedure {
     const std::string& get_native_name() const { return nativeName; }
     void set_native_name(std::string s) { nativeName = s ; }
 
-    void* get_function_pointer() { return functionPointer; }
-    void set_function_pointer(void* i) { functionPointer = i; }
+    void* get_function_pointer() {
+        fmt::print("name is {}\n", nativeName);
+        return functionPointer; }
+    void set_function_pointer(void* i) {
+        fmt::print("setting FP of {:x} to {:x}\n", (intptr_t)this, (intptr_t)i);
+        functionPointer = i; }
 
   private:
     void*       functionPointer;

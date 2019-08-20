@@ -79,22 +79,22 @@ void Memory::free_node(HeapNode *h)
 
 
 void Memory::sweep() {
-    for (auto it = allocations.begin(); it != allocations.end();) {
-        auto h = *it;
-        if (h->collectable()) {
-            free_node(h);
-            it = allocations.erase(it);
-        } else {
-            h->clear_flag(USED);
-            ++it;
-        }
-    }
+    // for (auto it = allocations.begin(); it != allocations.end();) {
+    //     auto h = *it;
+    //     if (h->collectable()) {
+    //         free_node(h);
+    //         it = allocations.erase(it);
+    //     } else {
+    //         h->clear_flag(USED);
+    //         ++it;
+    //     }
+    // }
 } // namespace minou
 
 void Memory::mark_and_sweep(EnvPtr root) {
-    assert(root);
-    mark(root);
-    sweep();
+    // assert(root);
+    // mark(root);
+    // sweep();
 }
 
 } // namespace minou
