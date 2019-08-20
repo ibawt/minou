@@ -33,22 +33,18 @@ namespace minou {
 extern "C" {
 API int64_t lambda_get_function_pointer(int64_t x) {
     auto y = (int64_t)((Lambda *)x)->get_function_pointer();
-    fmt::print("function pointer of {:x}: {:x}\n", (intptr_t)x, y);
     assert(y);
     return y;
 }
 
 API int64_t env_set(Env *env, Atom sym, Atom value) {
     env->set(sym.symbol(), value);
-    fmt::print("setting {} to {:x}\n", sym, value.value);
     return sym.value;
 }
 
 API int64_t env_get(Env *env, Atom sym) {
     auto x = env->lookup(sym.symbol());
     if (x.has_value()) {
-        fmt::print("env_get: {} = {:x}, type: {}\n", sym, x.value().value,
-                   (int)x.value().get_type());
         return x.value().value;
     }
     assert(false);
@@ -57,7 +53,6 @@ API int64_t env_get(Env *env, Atom sym) {
 
 API int64_t lambda_get_env_pointer(int64_t t) {
     auto x = (int64_t)((Lambda *)t)->get_env();
-    fmt::print("get_env_ptr = 0x{:x}\n", x);
     return x;
 }
 }
@@ -80,8 +75,7 @@ class CompilerContext {
         switch (a.get_type()) {
         case AtomType::Cons:
             if (!a.cons()) {
-                fmt::print("invalid list application\n");
-                return nullptr;
+                return("invalid list application\n");
             }
             if (a.cons()->car.get_type() == AtomType::Symbol) {
                 auto sym = a.cons()->car.symbol();
@@ -211,7 +205,11 @@ class CompilerContext {
                                                    llvm::APInt(64, INTEGER)));
 
                     return vvv;
-                } else if (sym == "define") {
+                }
+                else if(sym == "quote") {
+                    return constant_atom(a.cons()->cdr->car);
+                }
+                else if (sym == "define" || sym == "set!") {
                     auto sym = a.cons()->cdr->car;
 
                     auto value = compile(a.cons()->cdr->cdr->car);
@@ -231,6 +229,7 @@ class CompilerContext {
                             return v;
                         }
                     }
+                    return constant_atom(Atom());
                 } else if (sym == "lambda") {
                     auto name = fmt::format("lambda_{}", lambdaCounter++);
                     {
@@ -268,9 +267,6 @@ class CompilerContext {
                         }
                         auto e = new Env(env);
 
-                        fmt::print("lambda() new env is: 0x{:x}\n",
-                                   (intptr_t)e);
-
                         CompilerContext compiler(context, cbuilder, module,
                                                  engine, e);
 
@@ -290,7 +286,6 @@ class CompilerContext {
                             a.cons()->cdr, a.cons()->cdr->cdr, e);
                         l->set_native_name(name);
 
-                        fmt::print("alloacted lambda is: {:x}\n", (intptr_t)l);
                         for (auto [key, value] : compiler.get_lambdas()) {
                             lambdas[key] = value;
                         }
@@ -560,7 +555,6 @@ Result<Atom> NativeEngine::execute(Atom a) {
     llvm::IRBuilder<> builder(context);
     builder.SetInsertPoint(bb);
 
-    fmt::print("main env is 0x{:x}\n", (intptr_t)env);
     CompilerContext compiler(context, builder, module.get(), engine, env);
     auto v = compiler.compile(a);
     if (is_error(v)) {
@@ -601,25 +595,16 @@ Result<Atom> NativeEngine::execute(Atom a) {
     }
     for (auto &[key, value] : compiler.get_lambdas()) {
         auto x = jit->findSymbol(value->get_native_name());
-        fmt::print("trying to find: {}\n", value->get_native_name());
         if (auto err = x.getAddress().takeError()) {
             return "error in finding symbol";
         }
         value->set_function_pointer((void *)(*x.getAddress()));
     }
-    fmt::print("expression address: {}\n", *addr);
 
     Atom (*FP)(Env *) = (Atom(*)(Env *))(intptr_t)*addr;
-    env->for_each([](auto key, auto value) -> void {
-        fmt::print("ENV {} = {:x}\n", key, value.value);
-    });
 
     auto x = FP(env);
 
-    fmt::print("AFTER ()\n");
-    env->for_each([](auto key, auto value) -> void {
-        fmt::print("ENV {} = {:x}\n", key, value.value);
-    });
     return x;
 }
 

@@ -97,10 +97,8 @@ class Lambda : public Procedure {
     void set_native_name(std::string s) { nativeName = s ; }
 
     void* get_function_pointer() {
-        fmt::print("name is {}\n", nativeName);
         return functionPointer; }
     void set_function_pointer(void* i) {
-        fmt::print("setting FP of {:x} to {:x}\n", (intptr_t)this, (intptr_t)i);
         functionPointer = i; }
 
   private:
