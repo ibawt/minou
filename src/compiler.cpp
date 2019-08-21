@@ -410,8 +410,9 @@ static llvm::Function *get_function_pointer(llvm::Module *m) {
     auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage,
                                     "lambda_get_function_pointer", m);
 
+    f->setCallingConv(llvm::CallingConv::Fast);
     llvm::IRBuilder<> builder(m->getContext());
-    auto bb = llvm::BasicBlock::Create(m->getContext(), "entry");
+    auto bb = llvm::BasicBlock::Create(m->getContext(), "entry", f);
     builder.SetInsertPoint(bb);
 
     auto i = builder.CreateAdd(f->args().begin(), llvm::ConstantInt::get(m->getContext(), llvm::APInt(64, offsetof(Lambda, function_pointer))));
@@ -433,8 +434,9 @@ static llvm::Function *lambda_get_env_pointer(llvm::Module *m) {
     auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage,
                                     "lambda_get_env_pointer", m);
 
+    f->setCallingConv(llvm::CallingConv::Fast);
     llvm::IRBuilder<> builder(m->getContext());
-    auto bb = llvm::BasicBlock::Create(m->getContext(), "entry");
+    auto bb = llvm::BasicBlock::Create(m->getContext(), "entry", f);
     builder.SetInsertPoint(bb);
 
     auto i = builder.CreateAdd(f->args().begin(), llvm::ConstantInt::get(m->getContext(), llvm::APInt(64, offsetof(Lambda, env))));
@@ -482,6 +484,7 @@ static llvm::Function *atom_to_type(llvm::Module *m) {
     auto f = llvm::Function::Create(ft, llvm::Function::PrivateLinkage,
                                     "atom_to_type", m);
 
+    f->setCallingConv(llvm::CallingConv::Fast);
     auto bb = llvm::BasicBlock::Create(context, "entry", f);
 
     llvm::IRBuilder<> builder(context);
@@ -551,6 +554,8 @@ static llvm::Function *atom_to_integer(llvm::Module *module) {
     auto f = llvm::Function::Create(ft, llvm::Function::PrivateLinkage,
                                     "atom_to_integer", module);
     auto bb = llvm::BasicBlock::Create(context, "entry", f);
+
+    f->setCallingConv(llvm::CallingConv::Fast);
 
     llvm::IRBuilder<> builder(context);
     builder.SetInsertPoint(bb);

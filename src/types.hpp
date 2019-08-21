@@ -290,6 +290,9 @@ inline Atom make_integer(const int64_t i) {
 }
 
 inline Atom make_cons(const Cons *c) {
+    if(!c) {
+        return make_nil();
+    }
     Atom a{reinterpret_cast<uintptr_t>(c)};
     return a;
 }
@@ -409,7 +412,7 @@ struct Cons {
 
 static_assert(std::is_pod<Cons>());
 
-bool equalsp(const Atom &a, const Atom &b);
+bool equalsp(const Atom a, const Atom b);
 
 inline bool has_only_n(const Cons *c, const int n) {
     int i = 0;

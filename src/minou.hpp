@@ -21,5 +21,4 @@ inline Atom cdr(const Atom &a) {
 }
 } // namespace minou
 
-#include "parser.hpp"
 #endif

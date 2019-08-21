@@ -1,5 +1,6 @@
 #include "eval.hpp"
 #include "minou.hpp"
+#include "parser.hpp"
 #include "gtest/gtest.h"
 #include <memory>
 #include <string>
@@ -74,10 +75,11 @@ TEST(Helpers, EqualsP) {
     Memory m;
 
     ASSERT_TRUE(equalsp(make_cons(m.make_list({make_integer(1L), make_integer(2L)})), make_cons(m.make_list({make_integer(1L), make_integer(2L)}))));
+    ASSERT_FALSE(equalsp(make_cons(m.make_list({make_integer(1L)})), make_cons(m.make_list({make_integer(1L), make_integer(2L)}))));
+    auto a = make_cons(m.make_list({}));
+    auto b = make_cons(m.make_list({}));
 
-    // ASSERT_FALSE(equalsp(make_cons(m.make_list({make_integer(1L)})), make_cons(m.make_list({make_integer(1L), make_integer(2L)}))));
-
-    // ASSERT_TRUE(equalsp(make_cons(m.make_list({})), make_cons(m.make_list({}))));
+    ASSERT_TRUE(equalsp(a, b));
 }
 
 TEST(Parsing, AllTheThings) {

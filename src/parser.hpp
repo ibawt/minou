@@ -3,9 +3,9 @@
 
 #include <stdexcept>
 #include <variant>
-
 #include "memory.hpp"
 #include "minou.hpp"
+#include <string>
 
 namespace minou {
 

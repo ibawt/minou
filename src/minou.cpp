@@ -4,7 +4,7 @@
 namespace minou {
 
 
-bool equalsp(const Atom &a, const Atom &b) {
+bool equalsp(const Atom a, const Atom b) {
     if (a.get_type() != b.get_type()) {
         return false;
     }

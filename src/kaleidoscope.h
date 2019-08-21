@@ -32,7 +32,6 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include <cstdio>
 
 namespace llvm {
 namespace orc {
@@ -114,7 +113,6 @@ private:
       if (auto Sym = CompileLayer.findSymbolIn(H, Name, ExportedSymbolsOnly))
         return Sym;
 
-    printf("didn't fidn in modules, looking in process\n");
     // If we can't find the symbol in the JIT, try looking in the host process.
     if (auto SymAddr = RTDyldMemoryManager::getSymbolAddressInProcess(Name)) {
       return JITSymbol(SymAddr, JITSymbolFlags::Exported);
