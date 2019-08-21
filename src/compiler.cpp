@@ -257,7 +257,7 @@ class CompilerContext {
                             return v;
                         }
                     }
-                    return constant_atom(Atom());
+                    return constant_atom(make_nil());
                 } else if (sym == "lambda") {
                     return compile_lambda(a);
                 } else {
@@ -294,7 +294,7 @@ class CompilerContext {
         auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage,
                                         name, module);
 
-        f->setCallingConv(llvm::CallingConv::Fast);
+        // f->setCallingConv(llvm::CallingConv::Fast);
 
         auto bb = llvm::BasicBlock::Create(context, "entry", f);
         llvm::IRBuilder<> cbuilder(context);
@@ -375,7 +375,7 @@ class CompilerContext {
                                         funcArgs, false)
                     ->getPointerTo());
         auto v = builder.CreateCall(ll, args);
-        v->setCallingConv(llvm::CallingConv::Fast);
+        // v->setCallingConv(llvm::CallingConv::Fast);
 
         return v;
     }
@@ -410,7 +410,7 @@ static llvm::Function *get_function_pointer(llvm::Module *m) {
     auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage,
                                     "lambda_get_function_pointer", m);
 
-    f->setCallingConv(llvm::CallingConv::Fast);
+    // f->setCallingConv(llvm::CallingConv::Fast);
     llvm::IRBuilder<> builder(m->getContext());
     auto bb = llvm::BasicBlock::Create(m->getContext(), "entry", f);
     builder.SetInsertPoint(bb);
@@ -434,7 +434,7 @@ static llvm::Function *lambda_get_env_pointer(llvm::Module *m) {
     auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage,
                                     "lambda_get_env_pointer", m);
 
-    f->setCallingConv(llvm::CallingConv::Fast);
+    // f->setCallingConv(llvm::CallingConv::Fast);
     llvm::IRBuilder<> builder(m->getContext());
     auto bb = llvm::BasicBlock::Create(m->getContext(), "entry", f);
     builder.SetInsertPoint(bb);
@@ -484,7 +484,7 @@ static llvm::Function *atom_to_type(llvm::Module *m) {
     auto f = llvm::Function::Create(ft, llvm::Function::PrivateLinkage,
                                     "atom_to_type", m);
 
-    f->setCallingConv(llvm::CallingConv::Fast);
+    // f->setCallingConv(llvm::CallingConv::Fast);
     auto bb = llvm::BasicBlock::Create(context, "entry", f);
 
     llvm::IRBuilder<> builder(context);
@@ -555,7 +555,7 @@ static llvm::Function *atom_to_integer(llvm::Module *module) {
                                     "atom_to_integer", module);
     auto bb = llvm::BasicBlock::Create(context, "entry", f);
 
-    f->setCallingConv(llvm::CallingConv::Fast);
+    // f->setCallingConv(llvm::CallingConv::Fast);
 
     llvm::IRBuilder<> builder(context);
     builder.SetInsertPoint(bb);
