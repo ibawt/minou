@@ -12,10 +12,9 @@ namespace minou {
 
 class Engine {
   public:
-    Engine() : nativeEngine(this, global.get()) {}
+    Engine() : global(this), nativeEngine(this, &global) {}
     ~Engine() {
-        global->clear();
-        memory.mark_and_sweep(global.get());
+        memory.mark_and_sweep(&global);
     }
     Result<Atom> eval(const std::string_view &s);
     Result<Atom> eval(const char *s) { return eval(std::string_view(s)); }
@@ -24,17 +23,17 @@ class Engine {
     // const SymbolInterner &get_interner() const { return syms; }
     SymbolInterner &get_interner() { return syms; }
 
-    void gc() { memory.mark_and_sweep(global.get()); }
+    void gc() { memory.mark_and_sweep(&global); }
     Memory &get_memory() { return memory; }
 
     Env* get_env() {
-        return global.get();
+        return &global;
     }
 
   private:
     SymbolInterner syms;
     Memory memory;
-    std::unique_ptr<Env> global = std::make_unique<Env>(this);
+    Env global;
 
     NativeEngine nativeEngine;
 };

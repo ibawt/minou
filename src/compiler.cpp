@@ -70,64 +70,66 @@ class CompilerContext {
         return module->getFunction(name);
     }
 
+    Result<llvm::Value *> compile_if(Atom a) {
+        auto pred = compile(a.cons()->cdr->car);
+        if (is_error(pred)) {
+            return pred;
+        }
+        auto is_boolean = builder.CreateICmpNE(
+            get_value(pred), constant_atom(Boolean(false)), "ifcond");
+
+        auto theFunc = builder.GetInsertBlock()->getParent();
+        auto thenBB = llvm::BasicBlock::Create(context, "then", theFunc);
+
+        auto elseBB = llvm::BasicBlock::Create(context, "else");
+        auto mergeBB = llvm::BasicBlock::Create(context, "ifcont");
+        builder.CreateCondBr(is_boolean, thenBB, elseBB);
+
+        builder.SetInsertPoint(thenBB);
+
+        auto then = compile(a.cons()->cdr->cdr->car);
+        if (is_error(then)) {
+            return then;
+        }
+
+        builder.CreateBr(mergeBB);
+
+        thenBB = builder.GetInsertBlock();
+
+        theFunc->getBasicBlockList().push_back(elseBB);
+        builder.SetInsertPoint(elseBB);
+
+        auto elseV = compile(a.cons()->cdr->cdr->cdr->car);
+        if (is_error(elseV)) {
+            return elseV;
+        }
+
+        builder.CreateBr(mergeBB);
+        elseBB = builder.GetInsertBlock();
+
+        theFunc->getBasicBlockList().push_back(mergeBB);
+        builder.SetInsertPoint(mergeBB);
+
+        auto pn = builder.CreatePHI(atom_type(), 2, "iftmp");
+
+        pn->addIncoming(get_value(then), thenBB);
+        pn->addIncoming(get_value(elseV), elseBB);
+
+        return pn;
+    }
+
     Result<llvm::Value *> compile(Atom a) {
         fmt::print("compiling: {}\n", a);
         switch (a.get_type()) {
         case AtomType::Cons:
             if (!a.cons()) {
-                return("invalid list application\n");
+                return ("invalid list application\n");
             }
             if (a.cons()->car.get_type() == AtomType::Symbol) {
                 auto sym = a.cons()->car.symbol();
 
                 if (sym == "if") {
-                    auto pred = compile(a.cons()->cdr->car);
-                    if (is_error(pred)) {
-                        return pred;
-                    }
-                    auto is_boolean = builder.CreateICmpNE(
-                        get_value(pred), constant_atom(Boolean(false)),
-                        "ifcond");
-
-                    auto theFunc = builder.GetInsertBlock()->getParent();
-                    auto thenBB =
-                        llvm::BasicBlock::Create(context, "then", theFunc);
-
-                    auto elseBB = llvm::BasicBlock::Create(context, "else");
-                    auto mergeBB = llvm::BasicBlock::Create(context, "ifcont");
-                    builder.CreateCondBr(is_boolean, thenBB, elseBB);
-
-                    builder.SetInsertPoint(thenBB);
-
-                    auto then = compile(a.cons()->cdr->cdr->car);
-                    if (is_error(then)) {
-                        return then;
-                    }
-
-                    builder.CreateBr(mergeBB);
-
-                    thenBB = builder.GetInsertBlock();
-
-                    theFunc->getBasicBlockList().push_back(elseBB);
-                    builder.SetInsertPoint(elseBB);
-
-                    auto elseV = compile(a.cons()->cdr->cdr->cdr->car);
-                    if (is_error(elseV)) {
-                        return elseV;
-                    }
-
-                    builder.CreateBr(mergeBB);
-                    elseBB = builder.GetInsertBlock();
-
-                    theFunc->getBasicBlockList().push_back(mergeBB);
-                    builder.SetInsertPoint(mergeBB);
-
-                    auto pn = builder.CreatePHI(atom_type(), 2, "iftmp");
-
-                    pn->addIncoming(get_value(then), thenBB);
-                    pn->addIncoming(get_value(elseV), elseBB);
-
-                    return pn;
+                    return compile_if(a);
                 } else if (sym == "=") {
                     auto x = compile(a.cons()->cdr->car);
                     auto y = compile(a.cons()->cdr->cdr->car);
@@ -153,10 +155,6 @@ class CompilerContext {
                     builder.SetInsertPoint(thenBB);
 
                     auto then = constant_atom(Boolean(true));
-                    if (!then) {
-                        return nullptr;
-                    }
-
                     builder.CreateBr(mergeBB);
 
                     thenBB = builder.GetInsertBlock();
@@ -165,9 +163,6 @@ class CompilerContext {
                     builder.SetInsertPoint(elseBB);
 
                     auto elseV = constant_atom(Boolean(false));
-                    if (!elseV) {
-                        return nullptr;
-                    }
 
                     builder.CreateBr(mergeBB);
                     elseBB = builder.GetInsertBlock();
@@ -206,10 +201,52 @@ class CompilerContext {
 
                     return vvv;
                 }
-                else if(sym == "quote") {
-                    return constant_atom(a.cons()->cdr->car);
+                else if( sym == "-") {
+                    if( a.cons()->cdr->length() == 1) {
+                        auto x = compile(a.cons()->cdr->car);
+                        if(is_error(x)) {
+                            return x;
+                        }
+
+                        auto f = getFunction("atom_to_integer");
+                        auto xx = builder.CreateCall(f, get_value(x));
+                        auto v = builder.CreateNeg(xx);
+                        auto vv = builder.CreateShl(v, llvm::ConstantInt::get(context, llvm::APInt(64, 3)));
+                        auto vvv = builder.CreateOr(vv, llvm::ConstantInt::get(context, llvm::APInt(64, INTEGER)));
+                        return vvv;
+                    } else {
+                        auto x = compile(a.cons()->cdr->car);
+                        auto y = compile(a.cons()->cdr->cdr->car);
+                        if (is_error(x))
+                            return x;
+                        if (is_error(y))
+                            return y;
+
+                        auto f = getFunction("atom_to_integer");
+                        if (!f) {
+                            return "can't find atom_to_integer";
+                        }
+
+                        auto xx = builder.CreateCall(f, get_value(x));
+                        auto yy = builder.CreateCall(f, get_value(y));
+
+                        auto v = builder.CreateSub(xx, yy);
+                        auto vv = builder.CreateShl(
+                            v, llvm::ConstantInt::get(context,
+                                                      llvm::APInt(64, 3)));
+                        auto vvv = builder.CreateOr(
+                            vv, llvm::ConstantInt::get(
+                                    context, llvm::APInt(64, INTEGER)));
+
+                        return vvv;
+                    }
                 }
-                else if (sym == "define" || sym == "set!") {
+                else if (sym == "quote") {
+                    if (a.cons()->length() != 1) {
+                        return "invalid quote length";
+                    }
+                    return constant_atom(a.cons()->cdr->car);
+                } else if (sym == "define" || sym == "set!") {
                     auto sym = a.cons()->cdr->car;
 
                     auto value = compile(a.cons()->cdr->cdr->car);
@@ -231,71 +268,7 @@ class CompilerContext {
                     }
                     return constant_atom(Atom());
                 } else if (sym == "lambda") {
-                    auto name = fmt::format("lambda_{}", lambdaCounter++);
-                    {
-                        std::vector<llvm::Type *> args(
-                            a.cons()->cdr->car.cons()->length(),
-                            llvm::Type::getInt64Ty(context));
-                        args.push_back(atom_type());
-
-                        auto ft = llvm::FunctionType::get(
-                            llvm::Type::getInt64Ty(context), args, false);
-                        auto f = llvm::Function::Create(
-                            ft, llvm::Function::ExternalLinkage, name, module);
-
-                        auto bb = llvm::BasicBlock::Create(context, "entry", f);
-                        llvm::IRBuilder<> cbuilder(context);
-
-                        cbuilder.SetInsertPoint(bb);
-
-                        Cons *c = a.cons()->cdr->car.cons();
-                        std::vector<llvm::Argument *> envArgs;
-
-                        auto it = f->args().begin();
-                        it->setName("env");
-
-                        auto envValue = it;
-                        it++;
-
-                        for (; it != f->args().end(); ++it) {
-                            it->setName(c->car.symbol().string());
-                            cbuilder.CreateCall(
-                                module->getFunction("env_set"),
-                                {envValue, constant_atom(c->car), it});
-                            envArgs.push_back(it);
-                            c = c->cdr;
-                        }
-                        auto e = new Env(env);
-
-                        CompilerContext compiler(context, cbuilder, module,
-                                                 engine, e);
-
-                        Cons *body = engine->get_memory().alloc_cons(
-                            Symbol("begin"), a.cons()->cdr->cdr);
-
-                        auto v = compiler.compile(body);
-                        if (is_error(v))
-                            return v;
-                        cbuilder.CreateRet(get_value(v));
-
-                        if (llvm::verifyFunction(*f, &llvm::errs())) {
-                            return "error in lambda verify";
-                        }
-
-                        auto l = engine->get_memory().alloc<Lambda>(
-                            a.cons()->cdr, a.cons()->cdr->cdr, e);
-                        l->set_native_name(name);
-
-                        for (auto [key, value] : compiler.get_lambdas()) {
-                            lambdas[key] = value;
-                        }
-
-                        lambdas[name] = l;
-
-                        return llvm::ConstantInt::get(
-                            context, llvm::APInt(64, Atom(l).value));
-                    }
-
+                    return compile_lambda(a);
                 } else {
                     return compile_application(a);
                 }
@@ -317,6 +290,68 @@ class CompilerContext {
             return constant_atom(a);
         }
         return "shouldn't get here";
+    }
+
+    Result<llvm::Value *> compile_lambda(Atom a) {
+        auto name = fmt::format("lambda_{}", lambdaCounter++);
+        std::vector<llvm::Type *> args(a.cons()->cdr->car.cons()->length(),
+                                       llvm::Type::getInt64Ty(context));
+        args.push_back(atom_type());
+
+        auto ft = llvm::FunctionType::get(llvm::Type::getInt64Ty(context), args,
+                                          false);
+        auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage,
+                                        name, module);
+
+        f->setCallingConv(llvm::CallingConv::Fast);
+
+        auto bb = llvm::BasicBlock::Create(context, "entry", f);
+        llvm::IRBuilder<> cbuilder(context);
+
+        cbuilder.SetInsertPoint(bb);
+
+        Cons *c = a.cons()->cdr->car.cons();
+        std::vector<llvm::Argument *> envArgs;
+
+        auto it = f->args().begin();
+        it->setName("env");
+
+        auto envValue = it++;
+
+        for (; it != f->args().end(); ++it) {
+            it->setName(c->car.symbol().string());
+            cbuilder.CreateCall(module->getFunction("env_set"),
+                                {envValue, constant_atom(c->car), it});
+            envArgs.push_back(it);
+            c = c->cdr;
+        }
+        auto e = new Env(env);
+
+        CompilerContext compiler(context, cbuilder, module, engine, e);
+
+        Cons *body = engine->get_memory().alloc_cons(Symbol("begin"),
+                                                     a.cons()->cdr->cdr);
+
+        auto v = compiler.compile(body);
+        if (is_error(v))
+            return v;
+        cbuilder.CreateRet(get_value(v));
+
+        if (llvm::verifyFunction(*f, &llvm::errs())) {
+            return "error in lambda verify";
+        }
+
+        auto l = engine->get_memory().alloc<Lambda>(a.cons()->cdr,
+                                                    a.cons()->cdr->cdr, e);
+        l->set_native_name(name);
+
+        for (auto [key, value] : compiler.get_lambdas()) {
+            lambdas[key] = value;
+        }
+
+        lambdas[name] = l;
+
+        return constant_atom(l);
     }
 
     Result<llvm::Value *> compile_application(Atom a) {
@@ -350,9 +385,11 @@ class CompilerContext {
                                         funcArgs, false)
                     ->getPointerTo());
         auto v = builder.CreateCall(ll, args);
+        v->setCallingConv(llvm::CallingConv::Fast);
 
         return v;
     }
+
     llvm::Value *get_env() {
         return builder.GetInsertBlock()->getParent()->args().begin();
     }
@@ -504,7 +541,7 @@ static llvm::Function *atom_to_integer(llvm::Module *module) {
     llvm::IRBuilder<> builder(context);
     builder.SetInsertPoint(bb);
 
-    llvm::Value *out = &*f->args().begin();
+    llvm::Value *out = f->args().begin();
     builder.CreateRet(builder.CreateLShr(
         out, llvm::ConstantInt::get(context, llvm::APInt(64, 3))));
 
@@ -516,15 +553,15 @@ Result<Atom> NativeEngine::execute(Atom a) {
     module->setDataLayout(jit->getTargetMachine().createDataLayout());
     module->setTargetTriple(jit->getTargetMachine().getTargetTriple().str());
 
-    // llvm::ModulePassManager mpm;
     llvm::legacy::PassManager mpm;
     llvm::PassManagerBuilder pmBuilder;
     pmBuilder.Inliner = llvm::createFunctionInliningPass();
-    pmBuilder.OptLevel = 2;
+    pmBuilder.OptLevel = 3;
     pmBuilder.populateModulePassManager(mpm);
 
     auto fpm =
         std::make_unique<llvm::legacy::FunctionPassManager>(module.get());
+    fpm->add(llvm::createTailCallEliminationPass());
     fpm->add(llvm::createPromoteMemoryToRegisterPass());
     fpm->add(llvm::createInstructionCombiningPass());
     fpm->add(llvm::createReassociatePass());
