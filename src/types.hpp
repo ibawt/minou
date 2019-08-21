@@ -5,6 +5,7 @@
 #include <functional>
 #include <string>
 #include <variant>
+#include <type_traits>
 
 #include "symbol_intern.hpp"
 #include "fmt/format.h"
@@ -22,11 +23,10 @@ enum class AtomType : uint8_t {
     String,
     Nil,
     Boolean,
-    Lambda, // in ast form
-    Primitive, // for native implemention
-    Continuation, // eventual call/cc
-    Function, // compiled function
+    Lambda
 };
+
+static_assert(std::is_pod<AtomType>());
 
 inline const std::string atom_type_string(const AtomType a) {
     switch(a) {
@@ -44,12 +44,6 @@ inline const std::string atom_type_string(const AtomType a) {
         return "boolean";
     case AtomType::Lambda:
         return "lambda";
-    case AtomType::Primitive:
-        return "primitive";
-    case AtomType::Continuation:
-        return "continuation";
-    case AtomType::Function:
-        return "function";
     }
 }
 
@@ -67,6 +61,7 @@ constexpr inline bool is_heap_type(const AtomType a) {
 
 struct Boolean {
     Boolean(bool b) : b(b) {}
+
     bool b;
 
     bool operator()() const { return b; }
@@ -106,6 +101,7 @@ struct Number {
     bool operator==(const Number &n) const { return value == n.value; }
 };
 
+
 struct Cons;
 class Lambda;
 class Primitive;
@@ -116,7 +112,6 @@ inline const int USED   = 1;
 inline const int LOCKED = 2;
 
 struct HeapNode {
-    HeapNode(int size) : header(size << 16) { }
     // 0-7 AtomType
     // 8-15 flags
     // 16-63 size
@@ -131,6 +126,10 @@ struct HeapNode {
     void set_type(AtomType t) {
         header &= ~0xff;
         header |= (int)t;
+    }
+
+    void set_size(int size) {
+        header = size << 16;
     }
 
     int flags() const {
@@ -169,30 +168,28 @@ inline const int TAG_MASK  = bit_mask(3);
 class Procedure;
 
 struct Atom {
-    Atom() : value(NIL) {}
-    Atom(int i) : value(INTEGER | ( i << TAG_BITS)) {}
-    Atom(long i) : value(INTEGER | (i << TAG_BITS)) {}
-    #ifdef __APPLE__
-    Atom(int64_t i) : value(INTEGER | (i << TAG_BITS)) {}
-    #endif
-    Atom(Boolean b) : value(BOOL | (b() << TAG_BITS)) {}
-    Atom(Cons *cons) : value((intptr_t)cons) {
-        if (cons) {
-            set_type(AtomType::Cons);
-        } else {
-            value = NIL;
-        }
-    }
-    Atom(Symbol s) : value(s.interned_value << TAG_BITS) { set_type(AtomType::Symbol); }
-    Atom(Primitive *p) : value((intptr_t)p) { set_type(AtomType::Primitive); }
-    Atom(Lambda *p) : value((intptr_t)p) { set_type(AtomType::Lambda); }
-    Atom(String *s) : value((intptr_t)s) { set_type(AtomType::String); }
-    Atom(Continuation *c) : value((intptr_t)c) {
-        set_type(AtomType::Continuation);
-    }
-    Atom(Function *f) : value((intptr_t)f) { set_type(AtomType::Function); }
-
-    // Atom(const Atom& other)  = delete;
+    // Atom() : value(NIL) {}
+    // Atom(int i) : value(INTEGER | ( i << TAG_BITS)) {}
+    // Atom(long i) : value(INTEGER | (i << TAG_BITS)) {}
+    // #ifdef __APPLE__
+    // Atom(int64_t i) : value(INTEGER | (i << TAG_BITS)) {}
+    // #endif
+    // Atom(Boolean b) : value(BOOL | (b() << TAG_BITS)) {}
+    // Atom(Cons *cons) : value((intptr_t)cons) {
+    //     if (cons) {
+    //         set_type(AtomType::Cons);
+    //     } else {
+    //         value = NIL;
+    //     }
+    // }
+    // Atom(Symbol s) : value(s.interned_value << TAG_BITS) { set_type(AtomType::Symbol); }
+    // Atom(Primitive *p) : value((intptr_t)p) { set_type(AtomType::Primitive); }
+    // Atom(Lambda *p) : value((intptr_t)p) { set_type(AtomType::Lambda); }
+    // Atom(String *s) : value((intptr_t)s) { set_type(AtomType::String); }
+    // Atom(Continuation *c) : value((intptr_t)c) {
+    //     set_type(AtomType::Continuation);
+    // }
+    // Atom(Function *f) : value((intptr_t)f) { set_type(AtomType::Function); }
 
     uintptr_t value;
 
@@ -295,7 +292,37 @@ struct Atom {
     bool is_pair() const { return get_type() == AtomType::Cons && value != 0; }
 };
 
+inline Atom make_boolean(const Boolean b) {
+    return Atom{ BOOL | (uintptr_t)(b() << TAG_BITS )};
+}
+
+inline Atom make_nil() {
+    return Atom{ NIL };
+}
+
+inline Atom make_integer(const int64_t i) {
+    return Atom{ INTEGER | (static_cast<uint64_t>(i) << TAG_BITS) };
+}
+
+inline Atom make_cons(const Cons *c) {
+    Atom a{reinterpret_cast<uintptr_t>(c)};
+    return a;
+}
+
+inline Atom make_symbol(const Symbol s) {
+    return Atom{ SYMBOL | ((uint64_t)s.interned_value << TAG_BITS)};
+}
+
+inline Atom make_lambda(const Lambda *l)  {
+    return Atom{reinterpret_cast<uintptr_t>(l)};
+}
+
+inline Atom make_string(const String *s) {
+    return Atom{reinterpret_cast<uintptr_t>(s)};
+}
+
 static_assert(sizeof(Atom)== 8);
+static_assert(std::is_pod<Atom>());
 
 struct Cons {
     Cons(Atom car, Cons *cdr = nullptr) : car(car), cdr(cdr) {}
@@ -425,8 +452,37 @@ inline Atom caddr(Cons *cons) { return cons->cdr->cdr->car; }
 
 inline Atom cadddr(Cons *cons) { return cons->cdr->cdr->cdr->car; }
 
+class Env;
+
+struct Lambda {
+    Cons *arguments;
+    Cons *body;
+    Env  *env;
+
+    std::string *native_name;
+    void        *function_pointer;
+
+    void visit() {
+    }
+};
+
+static_assert(std::is_pod<Lambda>());
+
 } // namespace minou
 
+namespace fmt {
+template <> struct formatter<minou::Lambda> {
+    template <typename ParseContext> constexpr auto parse(ParseContext &ctx) {
+        return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const minou::Lambda &a, FormatContext &ctx) {
+        return format_to(ctx.begin(), "(lambda {} {})", minou::make_cons(a.arguments),
+                         minou::make_cons(a.body));
+    }
+};
+} // namespace fmt
 namespace fmt {
 template <> struct formatter<minou::Atom> {
     template <typename ParseContext> constexpr auto parse(ParseContext &ctx) {
@@ -459,17 +515,11 @@ template <> struct formatter<minou::Atom> {
            case minou::AtomType::Lambda: {
                return format_to(ctx.begin(), "{}", *a.lambda());
            }
-           case minou::AtomType::Primitive:
-               return format_to(ctx.begin(), "primitive");
            case minou::AtomType::Nil:
                return format_to(ctx.begin(), "nil");
                break;
            case minou::AtomType::Boolean:
                return format_to(ctx.begin(), (a.boolean() ? "#t" : "#f"));
-           case minou::AtomType::Continuation:
-               return format_to(ctx.begin(), "continuation");
-           case minou::AtomType::Function:
-               return format_to(ctx.begin(), "function");
            }
 
            return format_to(ctx.begin(), "invalid type");
@@ -483,7 +533,7 @@ template <> struct formatter<minou::Cons*> {
 
     template <typename FormatContext>
     auto format(const minou::Cons *c, FormatContext &ctx) {
-        return format_to(ctx.begin(), "{}", minou::Atom(c));
+        return format_to(ctx.begin(), "{}", minou::make_cons(c));
 
     }
 };

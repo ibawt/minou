@@ -24,7 +24,7 @@ TEST(Cons, Iterator) {
 }
 
 TEST(HeapNode, Headers) {
-    HeapNode n(5);
+    HeapNode n{ 5<< 16 };
     n.set_type(AtomType::Cons);
     EXPECT_EQ(n.size(), 5);
     EXPECT_FALSE(n.has_visited());

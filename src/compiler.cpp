@@ -29,14 +29,9 @@
 
 namespace minou {
 
+
 #define API __attribute__((visibility("default")))
 extern "C" {
-API int64_t lambda_get_function_pointer(int64_t x) {
-    auto y = (int64_t)((Lambda *)x)->get_function_pointer();
-    assert(y);
-    return y;
-}
-
 API int64_t env_set(Env *env, Atom sym, Atom value) {
     env->set(sym.symbol(), value);
     return sym.value;
@@ -51,10 +46,6 @@ API int64_t env_get(Env *env, Atom sym) {
     return Atom().value;
 }
 
-API int64_t lambda_get_env_pointer(int64_t t) {
-    auto x = (int64_t)((Lambda *)t)->get_env();
-    return x;
-}
 }
 
 static int lambdaCounter = 0;
@@ -76,7 +67,7 @@ class CompilerContext {
             return pred;
         }
         auto is_boolean = builder.CreateICmpNE(
-            get_value(pred), constant_atom(Boolean(false)), "ifcond");
+            get_value(pred), constant_atom(make_boolean(false)), "ifcond");
 
         auto theFunc = builder.GetInsertBlock()->getParent();
         auto thenBB = llvm::BasicBlock::Create(context, "then", theFunc);
@@ -154,7 +145,7 @@ class CompilerContext {
 
                     builder.SetInsertPoint(thenBB);
 
-                    auto then = constant_atom(Boolean(true));
+                    auto then = constant_atom(make_boolean(true));
                     builder.CreateBr(mergeBB);
 
                     thenBB = builder.GetInsertBlock();
@@ -162,7 +153,7 @@ class CompilerContext {
                     theFunc->getBasicBlockList().push_back(elseBB);
                     builder.SetInsertPoint(elseBB);
 
-                    auto elseV = constant_atom(Boolean(false));
+                    auto elseV = constant_atom(make_boolean(false));
 
                     builder.CreateBr(mergeBB);
                     elseBB = builder.GetInsertBlock();
@@ -329,10 +320,10 @@ class CompilerContext {
 
         CompilerContext compiler(context, cbuilder, module, engine, e);
 
-        Cons *body = engine->get_memory().alloc_cons(Symbol("begin"),
+        Cons *body = engine->get_memory().alloc_cons(make_symbol("begin"),
                                                      a.cons()->cdr->cdr);
 
-        auto v = compiler.compile(body);
+        auto v = compiler.compile(make_cons(body));
         if (is_error(v))
             return v;
         cbuilder.CreateRet(get_value(v));
@@ -341,9 +332,8 @@ class CompilerContext {
             return "error in lambda verify";
         }
 
-        auto l = engine->get_memory().alloc<Lambda>(a.cons()->cdr,
-                                                    a.cons()->cdr->cdr, e);
-        l->set_native_name(name);
+        auto l = engine->get_memory().alloc_lambda(a.cons()->cdr, a.cons()->cdr->cdr, e);
+        l->native_name = new std::string(name);
 
         for (auto [key, value] : compiler.get_lambdas()) {
             lambdas[key] = value;
@@ -351,7 +341,7 @@ class CompilerContext {
 
         lambdas[name] = l;
 
-        return constant_atom(l);
+        return constant_atom(make_lambda(l));
     }
 
     Result<llvm::Value *> compile_application(Atom a) {
@@ -420,6 +410,18 @@ static llvm::Function *get_function_pointer(llvm::Module *m) {
     auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage,
                                     "lambda_get_function_pointer", m);
 
+    llvm::IRBuilder<> builder(m->getContext());
+    auto bb = llvm::BasicBlock::Create(m->getContext(), "entry");
+    builder.SetInsertPoint(bb);
+
+    auto i = builder.CreateAdd(f->args().begin(), llvm::ConstantInt::get(m->getContext(), llvm::APInt(64, offsetof(Lambda, function_pointer))));
+
+    auto ii = builder.CreateIntToPtr(i, llvm::Type::getInt64PtrTy(m->getContext()));
+
+    auto iii = builder.CreateLoad(ii);
+
+    builder.CreateRet(iii);
+
     return f;
 }
 
@@ -430,6 +432,18 @@ static llvm::Function *lambda_get_env_pointer(llvm::Module *m) {
 
     auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage,
                                     "lambda_get_env_pointer", m);
+
+    llvm::IRBuilder<> builder(m->getContext());
+    auto bb = llvm::BasicBlock::Create(m->getContext(), "entry");
+    builder.SetInsertPoint(bb);
+
+    auto i = builder.CreateAdd(f->args().begin(), llvm::ConstantInt::get(m->getContext(), llvm::APInt(64, offsetof(Lambda, env))));
+
+    auto ii = builder.CreateIntToPtr(i, llvm::Type::getInt64PtrTy(m->getContext()));
+
+    auto iii = builder.CreateLoad(ii);
+
+    builder.CreateRet(iii);
 
     return f;
 }
@@ -631,11 +645,11 @@ Result<Atom> NativeEngine::execute(Atom a) {
         return "error finding expression symbol";
     }
     for (auto &[key, value] : compiler.get_lambdas()) {
-        auto x = jit->findSymbol(value->get_native_name());
+        auto x = jit->findSymbol(*value->native_name);
         if (auto err = x.getAddress().takeError()) {
             return "error in finding symbol";
         }
-        value->set_function_pointer((void *)(*x.getAddress()));
+        value->function_pointer = reinterpret_cast<void*>(*x.getAddress());
     }
 
     Atom (*FP)(Env *) = (Atom(*)(Env *))(intptr_t)*addr;

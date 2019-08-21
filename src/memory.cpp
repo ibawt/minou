@@ -26,17 +26,10 @@ void mark_atom(Atom a) {
             }
         }
         break;
-    case AtomType::Primitive:
-        a.primitive()->visit();
-        break;
     case AtomType::Lambda:
         if (!has_visited((char *)a.value))
             a.lambda()->visit();
         break;
-    case AtomType::Continuation:
-        if(!has_visited((char *)a.value)) {
-            a.continuation()->visit();
-        }
     default:
         break;
     }
@@ -65,11 +58,6 @@ void Memory::free_node(HeapNode *h)
         a->~Cons();
         consSlab.free((char *)h);
         return;
-    }
-    case AtomType::Continuation: {
-        auto a = (Continuation *)h->buff;
-        a->~Continuation();
-        break;
     }
     default:
         break;

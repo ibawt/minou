@@ -67,8 +67,8 @@ struct Parser {
     Memory &memory;
 
     ParseResult quote_atom(Atom a) {
-        std::vector<Atom> lis{Symbol("quote"), a};
-        return memory.make_list(lis);
+        std::vector<Atom> lis{make_symbol(Symbol("quote")), a};
+        return make_cons(memory.make_list(lis));
     }
 
     std::optional<std::string> read_value() {
@@ -116,7 +116,7 @@ struct Parser {
                 }
             }
         }
-        return memory.make_list(list);
+        return make_cons(memory.make_list(list));
     }
 
     ParseResult read_string() {
@@ -138,8 +138,7 @@ struct Parser {
             } break;
             case '"':
                 buff.next();
-                return memory.alloc<String>(
-                    std::string(out.data(), out.size()));
+                return make_string(memory.alloc_string(out.data(), out.size()));
             case EOF:
                 return error("eof");
             default:
@@ -195,9 +194,9 @@ struct Parser {
         if (v == "nil") {
             return make_nil();
         } else if (v == "#t") {
-            return Atom(Boolean(true));
+            return make_boolean(Boolean(true));
         } else if (v == "#f") {
-            return Atom(Boolean(false));
+            return make_boolean(Boolean(false));
         }
 
         if (v.size() == 0) {
@@ -207,10 +206,10 @@ struct Parser {
         if (isdigit(v[0]) || v[0] == '-') {
             auto r = parse_integer(v);
             if (r.has_value()) {
-                return Atom(r.value());
+                return make_integer(r.value());
             }
         }
-        return Symbol(v);
+        return make_symbol(v);
     }
 };
 

@@ -10,8 +10,6 @@
 
 namespace minou {
 
-inline Atom make_nil() { return Atom(); }
-
 inline Atom car(const Atom &a) {
     assert(a.is_list());
     return a.cons()->car;
@@ -19,7 +17,7 @@ inline Atom car(const Atom &a) {
 
 inline Atom cdr(const Atom &a) {
     assert(a.is_list());
-    return a.cons()->cdr;
+    return make_cons(a.cons()->cdr);
 }
 } // namespace minou
 

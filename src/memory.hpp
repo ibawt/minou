@@ -2,15 +2,17 @@
 #define MEMORY_H_
 
 #include "env.hpp"
+#include "eval.hpp"
 #include "types.hpp"
 #include <assert.h>
-#include <cstring>
 #include <list>
 #include <memory>
 #include <stddef.h>
 #include <string.h>
 #include <vector>
 #include "slab.hpp"
+#include <string>
+#include <cstring>
 
 namespace minou {
 
@@ -28,10 +30,6 @@ template <> constexpr inline AtomType type(Cons *) { return AtomType::Cons; }
 template <> constexpr inline AtomType type(Lambda *) {
     return AtomType::Lambda;
 }
-template <> constexpr inline AtomType type(Continuation *k) {
-    return AtomType::Continuation;
-}
-
 void mark_atom(Atom);
 void mark(EnvPtr env);
 
@@ -93,26 +91,59 @@ class Memory {
 
     void mark_and_sweep(EnvPtr root);
 
-    template <typename T, typename... Args> T *alloc(Args &&... args) {
-        int len = sizeof(T);
-        auto block = malloc(sizeof(HeapNode) + len);
-        memset(block, 0, sizeof(HeapNode) + len);
-        auto hn = new (block) HeapNode(len);
-        allocations.push_front(hn);
-        auto t = new ((char *)block + offsetof(HeapNode, buff))
-            T(std::forward<Args>(args)...);
+    // template <typename T, typename... Args> T *alloc(Args &&... args) {
+    //     int len = sizeof(T);
+    //     auto block = malloc(sizeof(HeapNode) + len);
+    //     memset(block, 0, sizeof(HeapNode) + len);
+    //     auto hn = (HeapNode*)block;
+    //     hn->set_size(len);
 
-        Atom a(t);
-        ++total_allocations;
-        assert( ((intptr_t)t & TAG_MASK) == 0 );
-        return (T*)a.value;
+    //     allocations.push_front(hn);
+    //     auto t = new ((char *)block + offsetof(HeapNode, buff))
+    //         T(std::forward<Args>(args)...);
+
+    //     Atom a(t);
+    //     ++total_allocations;
+    //     assert( ((intptr_t)t & TAG_MASK) == 0 );
+    //     return (T*)a.value;
+    // }
+
+    String* alloc_string(char *b, int len) {
+        auto block = (HeapNode*)malloc(sizeof(HeapNode) + sizeof(String));
+        memset(block, 0, sizeof(HeapNode) + sizeof(String));
+        block->set_size(sizeof(String));
+        allocations.push_front(block);
+
+        auto t = new ((block->buff)) String(b, len);
+        block->set_type(AtomType::String);
+        return t;
+    }
+
+    Lambda* alloc_lambda( Cons* args, Cons* body, Env* env) {
+        auto block = (HeapNode*)malloc(sizeof(HeapNode) + sizeof(Lambda));
+        memset(block, 0, sizeof(HeapNode) + sizeof(Lambda));
+        block->set_size(sizeof(Lambda));
+        allocations.push_front(block);
+
+        auto t = reinterpret_cast<Lambda*>(block->buff);
+        block->set_type(AtomType::Lambda);
+        t->arguments = args;
+        t->body = body;
+        t->env = env;
+        t->native_name = nullptr;
+        t->function_pointer = nullptr;
+
+        return t;
     }
 
     Cons* alloc_cons(Atom a, Cons* next) {
         auto block = consSlab.get();
         int len = sizeof(HeapNode) + sizeof(Cons);
         // memset(block, 0, len);
-        auto hn = new (block) HeapNode(len);
+        // auto hn = new (block) HeapNode(len);
+        auto hn = (HeapNode*)block;
+        hn->set_size(len);
+
         Cons *c = new (hn->buff) Cons(a, next);
         assert( (((intptr_t)c) & TAG_MASK) == 0 );
         hn->set_type(AtomType::Cons);
