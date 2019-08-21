@@ -143,7 +143,7 @@ class Memory {
     Cons* alloc_cons(Atom a, Cons* next) {
         auto block = consSlab.get();
         int len = sizeof(HeapNode) + sizeof(Cons);
-        // memset(block, 0, len);
+        memset(block, 0, len);
         // auto hn = new (block) HeapNode(len);
         auto hn = (HeapNode*)block;
         hn->set_size(len);

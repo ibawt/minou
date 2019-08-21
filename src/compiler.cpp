@@ -233,7 +233,7 @@ class CompilerContext {
                     }
                 }
                 else if (sym == "quote") {
-                    if (a.cons()->length() != 1) {
+                    if (a.cons()->length() != 2) {
                         return "invalid quote length";
                     }
                     return constant_atom(a.cons()->cdr->car);

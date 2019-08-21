@@ -27,6 +27,7 @@ enum class AtomType : uint8_t {
     Lambda
 };
 
+
 static_assert(std::is_pod<AtomType>());
 
 inline const std::string atom_type_string(const AtomType a) {
