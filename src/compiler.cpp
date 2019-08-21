@@ -43,7 +43,7 @@ API int64_t env_get(Env *env, Atom sym) {
         return x.value().value;
     }
     assert(false);
-    return Atom().value;
+    return make_nil().value;
 }
 
 }
@@ -320,7 +320,7 @@ class CompilerContext {
 
         CompilerContext compiler(context, cbuilder, module, engine, e);
 
-        Cons *body = engine->get_memory().alloc_cons(make_symbol("begin"),
+        Cons *body = engine->get_memory().alloc_cons(make_symbol(Symbol::from("begin")),
                                                      a.cons()->cdr->cdr);
 
         auto v = compiler.compile(make_cons(body));

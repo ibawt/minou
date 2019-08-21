@@ -63,7 +63,7 @@ class Env {
 
     void for_each(std::function<void(const std::string_view, Atom)> f) {
         for (auto [key, value] : map) {
-            f(Symbol(key).string(), value);
+            f(Symbol::from(key).string(), value);
         }
     }
 

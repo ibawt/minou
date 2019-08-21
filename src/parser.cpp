@@ -67,7 +67,7 @@ struct Parser {
     Memory &memory;
 
     ParseResult quote_atom(Atom a) {
-        std::vector<Atom> lis{make_symbol(Symbol("quote")), a};
+        std::vector<Atom> lis{make_symbol(Symbol::from("quote")), a};
         return make_cons(memory.make_list(lis));
     }
 
@@ -194,9 +194,9 @@ struct Parser {
         if (v == "nil") {
             return make_nil();
         } else if (v == "#t") {
-            return make_boolean(Boolean(true));
+            return make_boolean(true);
         } else if (v == "#f") {
-            return make_boolean(Boolean(false));
+            return make_boolean(false);
         }
 
         if (v.size() == 0) {
@@ -209,7 +209,7 @@ struct Parser {
                 return make_integer(r.value());
             }
         }
-        return make_symbol(v);
+        return make_symbol(Symbol::from(v));
     }
 };
 

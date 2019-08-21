@@ -10,7 +10,7 @@ using namespace minou;
 TEST(Cons, Iterator) {
     Memory m;
 
-    auto l = m.make_list({Atom(0L), Atom(1)});
+    auto l = m.make_list({make_integer(0L), make_integer(1)});
 
     std::vector<Cons*> list;
     for(const auto x : *l) {
@@ -18,8 +18,8 @@ TEST(Cons, Iterator) {
     }
 
     EXPECT_EQ(2, list.size());
-    EXPECT_EQ(Atom(0L), list[0]->car);
-    EXPECT_EQ(Atom(1L), list[1]->car);
+    EXPECT_EQ(make_integer(0L), list[0]->car);
+    EXPECT_EQ(make_integer(1L), list[1]->car);
     EXPECT_EQ(2, l->length());
 }
 
@@ -58,10 +58,10 @@ TEST(Memory, CheckIfTypeIsSet) {
         Atom a;
         AtomType expected;
     } tests[] = {
-        {Symbol(""), AtomType::Symbol},
-        {m.alloc<String>(""), AtomType::String},
-        {m.alloc_cons(Atom(), nullptr), AtomType::Cons},
-        {m.alloc<Lambda>(nullptr, nullptr, nullptr), AtomType::Lambda},
+        {make_symbol(Symbol::from("")), AtomType::Symbol},
+        {make_string(m.alloc_string("", 0)), AtomType::String},
+        {make_nil(), AtomType::Cons},
+        {make_lambda(m.alloc_lambda(nullptr, nullptr, nullptr)), AtomType::Lambda},
     };
 
     for (const auto &t : tests) {
@@ -71,9 +71,9 @@ TEST(Memory, CheckIfTypeIsSet) {
 
 TEST(Helpers, EqualsP) {
     Memory m;
-    ASSERT_TRUE(equalsp(m.make_list({1L, 2L}), m.make_list({1L, 2L})));
-    ASSERT_FALSE(equalsp(m.make_list({1L}), m.make_list({1L, 2L})));
-    ASSERT_TRUE(equalsp(m.make_list({}), m.make_list({})));
+    ASSERT_TRUE(equalsp(make_cons(m.make_list({make_integer(1L), make_integer(2L)})), make_cons(m.make_list({make_integer(1L), make_integer(2L)}))));
+    ASSERT_FALSE(equalsp(make_cons(m.make_list({make_integer(1L)})), make_cons(m.make_list({make_integer(1L), make_integer(2L)}))));
+    ASSERT_TRUE(equalsp(make_cons(m.make_list({})), make_cons(m.make_list({}))));
 }
 
 TEST(Parsing, AllTheThings) {
@@ -82,30 +82,30 @@ TEST(Parsing, AllTheThings) {
         std::string input;
         Atom output;
     } tests[] = {
-        {"5", Atom(5L)},
-        {"-1", Atom(-1L)},
-        {"nil", Atom()},
-        {"foo", Symbol("foo")},
-        {"\"stuff\"", m.alloc<String>("stuff")},
-        {"#t", Boolean(true)},
-        {"#f", Atom(Boolean(false))},
+        {"5", make_integer(5L)},
+        {"-1", make_integer(-1L)},
+        {"nil", make_nil()},
+        {"foo", make_symbol(Symbol::from("foo"))},
+        {"\"stuff\"", make_string(m.alloc_string("stuff"))},
+        {"#t", make_boolean(true)},
+        {"#f", make_boolean(false)},
     };
 
     for (const auto &test : tests) {
         auto a = parse(m, test.input);
         ASSERT_TRUE(std::holds_alternative<Atom>(a));
-        EXPECT_EQ(get_atom(a), test.output);
+        EXPECT_EQ(get_value(a), test.output);
     }
 
     auto l = parse(m, "(1 2)");
-    ASSERT_TRUE(equalsp(get_atom(l), m.make_list({1L, 2L})));
+    ASSERT_TRUE(equalsp(get_value(l), make_cons(m.make_list({make_integer(1L), make_integer(2L)}))));
     ASSERT_TRUE(
-        equalsp(get_atom(parse(m, "(foo (bar))")),
-                m.make_list({Symbol("foo"), m.make_list({Symbol("bar")})})));
+        equalsp(get_value(parse(m, "(foo (bar))")),
+                make_cons(m.make_list({make_symbol(Symbol::from("foo")), make_cons(m.make_list({make_symbol(Symbol::from("bar"))}))}))));
     ASSERT_TRUE(equalsp(
-        get_atom(parse(m, "'foo")),
-        m.make_list({Symbol("quote"), Symbol("foo")})));
-    ASSERT_TRUE(equalsp(get_atom(parse(m, "()")), m.make_list({})));
+        get_value(parse(m, "'foo")),
+        make_cons(m.make_list({make_symbol(Symbol::from("quote")), make_symbol(Symbol::from("foo"))}))));
+    ASSERT_TRUE(equalsp(get_value(parse(m, "()")), make_cons(m.make_list({}))));
 }
 
 TEST(Parsing, InvalidThings) {
@@ -192,37 +192,37 @@ class EvalTest : public ::testing::Test {
 };
 
 TEST_F(EvalTest, Define) {
-    run({{"(begin (define foo 1) foo)", Atom(1L)},
-         {"(begin (define foo (lambda () (+ 1 2))) (foo))", Atom(3L)}});
+    run({{"(begin (define foo 1) foo)", make_integer(1L)},
+         {"(begin (define foo (lambda () (+ 1 2))) (foo))", make_integer(3L)}});
 }
 
 TEST_F(EvalTest, Closure) {
     run({{"(begin (define foo (lambda (a) (lambda (b) (+ a b)))) ((foo 1) 2))",
-          Atom(3L)}});
+          make_integer(3L)}});
 }
 
 TEST_F(EvalTest, Set) {
-    run({{"(begin (define foo 1) (set! foo 2) 2)", Atom(2L)}});
+    run({{"(begin (define foo 1) (set! foo 2) 2)", make_integer(2L)}});
 }
 
 TEST_F(EvalTest, SimpleCases) {
-    run({{"5", Atom(5L)}, {"(+ 1 2)", Atom(3L)}, {"'foo", Symbol("foo")}});
+    run({{"5", make_integer(5L)}, {"(+ 1 2)", make_integer(3L)}, {"'foo", make_symbol(Symbol::from("foo"))}});
 }
 
 TEST_F(EvalTest, Begin) {
-    run({{"(begin 5)", Atom(5L)},
-         {"(begin 5 4)", Atom(4L)},
-         {"(begin)", Atom()}});
+    run({{"(begin 5)", make_integer(5L)},
+         {"(begin 5 4)", make_integer(4L)},
+         {"(begin)", make_nil()}});
 }
 
 TEST_F(EvalTest, Lambda) {
-    run({{"((lambda () 1))", Atom(1L)}, {"((lambda (a) a) 1)", Atom(1L)}});
+    run({{"((lambda () 1))", make_integer(1L)}, {"((lambda (a) a) 1)", make_integer(1L)}});
 }
 
 TEST_F(EvalTest, If) {
-    run({{"(if #t 1 0)", Atom(1L)},
-         {"(if #f 0 1)", Atom(1L)},
-         {"(if 5 1 0)", Atom(1L)}});
+    run({{"(if #t 1 0)", make_integer(1L)},
+         {"(if #f 0 1)", make_integer(1L)},
+         {"(if 5 1 0)", make_integer(1L)}});
 }
 
 // TEST_F(EvalTest, CallCC) {

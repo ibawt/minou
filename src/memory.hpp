@@ -108,7 +108,7 @@ class Memory {
     //     return (T*)a.value;
     // }
 
-    String* alloc_string(char *b, int len) {
+    String* alloc_string(const char *b, int len) {
         auto block = (HeapNode*)malloc(sizeof(HeapNode) + sizeof(String));
         memset(block, 0, sizeof(HeapNode) + sizeof(String));
         block->set_size(sizeof(String));
@@ -117,6 +117,10 @@ class Memory {
         auto t = new ((block->buff)) String(b, len);
         block->set_type(AtomType::String);
         return t;
+    }
+
+    String* alloc_string(const char *b) {
+        return alloc_string(b, strlen(b));
     }
 
     Lambda* alloc_lambda( Cons* args, Cons* body, Env* env) {
@@ -144,7 +148,10 @@ class Memory {
         auto hn = (HeapNode*)block;
         hn->set_size(len);
 
-        Cons *c = new (hn->buff) Cons(a, next);
+        Cons *c = (Cons*)(hn->buff);
+        c->car = a;
+        c->cdr = next;
+
         assert( (((intptr_t)c) & TAG_MASK) == 0 );
         hn->set_type(AtomType::Cons);
         ++total_allocations;

@@ -9,6 +9,7 @@
 
 #include "symbol_intern.hpp"
 #include "fmt/format.h"
+#include <cstring>
 
 namespace minou {
 
@@ -60,7 +61,9 @@ constexpr inline bool is_heap_type(const AtomType a) {
 }
 
 struct Boolean {
-    Boolean(bool b) : b(b) {}
+    static Boolean of(bool b) {
+        return Boolean{b};
+    }
 
     bool b;
 
@@ -69,19 +72,33 @@ struct Boolean {
     bool operator==(const Boolean &other) const { return b == other.b; }
 };
 
+static_assert(std::is_pod<Boolean>());
+
 using String = std::string;
 
 class Symbol {
   public:
-    Symbol(const char *s) : interned_value(intern(s)) {}
-    Symbol(const std::string &s) : interned_value(intern(s)) {}
-    Symbol(int i) : interned_value(i) {}
+    static Symbol from(const char *s) {
+        return Symbol{ intern(s) };
+    }
+    // Symbol(const char *s) : interned_value(intern(s)) {}
+    static Symbol from(const std::string& s) {
+        return Symbol{ intern(s) };
+    }
+
+    static Symbol from(int i) {
+        return Symbol{ i };
+    }
 
     bool operator==(const Symbol &other) const {
         return interned_value == other.interned_value;
     }
     bool operator<(const Symbol &other) const {
         return string() < other.string() ;
+    }
+
+    bool operator==(const char *s) const {
+        return strcmp(s, symbol_to_string(interned_value).c_str()) == 0;
     }
 
     const std::string& string() const {
@@ -91,8 +108,13 @@ class Symbol {
     const int interned_value;
 };
 
+static_assert(std::is_pod<Symbol>());
+
 struct Number {
-    Number(int64_t i) : value(i) {}
+    static Number from(int64_t i) {
+        return Number { i };
+    }
+
     union {
         int64_t value;
         double real;
@@ -101,12 +123,10 @@ struct Number {
     bool operator==(const Number &n) const { return value == n.value; }
 };
 
+static_assert(std::is_pod<Number>());
 
 struct Cons;
-class Lambda;
-class Primitive;
-class Continuation;
-class Function;
+struct Lambda;
 
 inline const int USED   = 1;
 inline const int LOCKED = 2;
@@ -156,6 +176,8 @@ struct HeapNode {
     bool has_visited() { return flags() & USED; }
 };
 
+static_assert(std::is_pod<HeapNode>());
+
 // atom tagging
 inline const int INTEGER = 1;
 inline const int BOOL    = 2;
@@ -165,32 +187,7 @@ inline const int SYMBOL  = 4;
 inline const int TAG_BITS  = 3;
 inline const int TAG_MASK  = bit_mask(3);
 
-class Procedure;
-
 struct Atom {
-    // Atom() : value(NIL) {}
-    // Atom(int i) : value(INTEGER | ( i << TAG_BITS)) {}
-    // Atom(long i) : value(INTEGER | (i << TAG_BITS)) {}
-    // #ifdef __APPLE__
-    // Atom(int64_t i) : value(INTEGER | (i << TAG_BITS)) {}
-    // #endif
-    // Atom(Boolean b) : value(BOOL | (b() << TAG_BITS)) {}
-    // Atom(Cons *cons) : value((intptr_t)cons) {
-    //     if (cons) {
-    //         set_type(AtomType::Cons);
-    //     } else {
-    //         value = NIL;
-    //     }
-    // }
-    // Atom(Symbol s) : value(s.interned_value << TAG_BITS) { set_type(AtomType::Symbol); }
-    // Atom(Primitive *p) : value((intptr_t)p) { set_type(AtomType::Primitive); }
-    // Atom(Lambda *p) : value((intptr_t)p) { set_type(AtomType::Lambda); }
-    // Atom(String *s) : value((intptr_t)s) { set_type(AtomType::String); }
-    // Atom(Continuation *c) : value((intptr_t)c) {
-    //     set_type(AtomType::Continuation);
-    // }
-    // Atom(Function *f) : value((intptr_t)f) { set_type(AtomType::Function); }
-
     uintptr_t value;
 
     void set_tag(int tag) {
@@ -233,11 +230,6 @@ struct Atom {
 
     int64_t integer() const { return value >> TAG_BITS; }
 
-    Procedure* procedure() const {
-        assert( get_type() == AtomType::Primitive || get_type() == AtomType::Lambda);
-        return (Procedure*)value;
-    }
-
     Cons *cons() const {
         if(get_type() == AtomType::Nil) {
             return nullptr;
@@ -250,21 +242,13 @@ struct Atom {
         assert(get_type() == AtomType::Boolean);
         return value >> TAG_BITS;
     }
-    Primitive *primitive() const {
-        assert(get_type() == AtomType::Primitive);
-        return (Primitive *)value;
-    }
     Lambda *lambda() const {
         assert(get_type() == AtomType::Lambda);
         return (Lambda *)value;
     }
-    Continuation *continuation() {
-        assert(get_type() == AtomType::Continuation);
-        return (Continuation *)value;
-    }
     Symbol symbol() const {
         assert(get_type() == AtomType::Symbol);
-        return Symbol(value >> TAG_BITS);
+        return Symbol::from(value >> TAG_BITS);
     }
     String *string() const {
         assert(get_type() == AtomType::String);
@@ -292,8 +276,8 @@ struct Atom {
     bool is_pair() const { return get_type() == AtomType::Cons && value != 0; }
 };
 
-inline Atom make_boolean(const Boolean b) {
-    return Atom{ BOOL | (uintptr_t)(b() << TAG_BITS )};
+inline Atom make_boolean(const bool b) {
+    return Atom{ BOOL | (uintptr_t)(b << TAG_BITS )};
 }
 
 inline Atom make_nil() {
@@ -325,9 +309,12 @@ static_assert(sizeof(Atom)== 8);
 static_assert(std::is_pod<Atom>());
 
 struct Cons {
-    Cons(Atom car, Cons *cdr = nullptr) : car(car), cdr(cdr) {}
     Atom car;
     Cons *cdr;
+
+    static Cons from(Atom car, Cons *cdr=nullptr) {
+        return Cons{car, cdr};
+    }
 
     class iterator {
         Cons *node;
@@ -418,6 +405,8 @@ struct Cons {
         return sum;
     }
 };
+
+static_assert(std::is_pod<Cons>());
 
 bool equalsp(const Atom &a, const Atom &b);
 
