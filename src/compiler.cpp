@@ -32,6 +32,7 @@ namespace minou {
 extern "C" {
 API int64_t env_set(Env *env, Atom sym, Atom value) {
     env->set(sym.symbol(), value);
+    fmt::print("[{:x}] setting {} to {}\n", (uintptr_t)env, sym, value);
     return sym.value;
 }
 
@@ -40,7 +41,6 @@ API int64_t env_get(Env *env, Atom sym) {
     if (x.has_value()) {
         return x.value().value;
     }
-    assert(false);
     return make_nil().value;
 }
 }
@@ -316,7 +316,9 @@ class CompilerContext {
             c = c->cdr;
         }
 
-        auto e = new Env(env);
+        auto e = engine->get_memory().alloc_env(env);
+
+        fmt::print("{} has env of {:x}\n", name, (uintptr_t)e);
 
         CompilerContext compiler(context, cbuilder, module, engine, e);
 
@@ -393,7 +395,52 @@ class CompilerContext {
 
     std::map<std::string, Lambda *> &get_lambdas() { return lambdas; }
 
+    bool is_in_lambda(const std::string& s) {
+        if(!current_lambda)
+            return false;
+
+        for( auto c : *current_lambda->arguments) {
+            if( c->car.symbol().string() == s) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool is_symbol_in_tree(const std::string& s) {
+        if( is_in_lambda(s)) {
+            return true;
+        }
+
+        if(parent) {
+            if( parent->is_symbol_in_tree(s)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    std::vector<std::string> get_free_variables(Atom a) {
+        std::vector<std::string> vars;
+
+        switch( a.get_type()) {
+        case AtomType::Cons: {
+            if( a.cons()->car.get_type() == AtomType::Symbol) {
+                auto sym = a.cons()->car.symbol();
+                if(sym == "lambda") {
+                }
+            }
+        } break;
+        default:
+            break;
+        }
+        return vars;
+    }
+
+
   private:
+    Lambda          *current_lambda;
+    CompilerContext *parent;
     Env *env;
     Engine *engine;
     llvm::IRBuilder<> &builder;
@@ -635,9 +682,9 @@ Result<Atom> NativeEngine::execute(Atom a) {
 
     mpm.run(*module.get());
 
-    for (auto &F : *module.get()) {
-        F.print(llvm::errs());
-    }
+    // for (auto &F : *module.get()) {
+    //     F.print(llvm::errs());
+    // }
 
     fpm->doFinalization();
 

@@ -28,7 +28,6 @@ template <> constexpr inline AtomType type(Lambda *) {
 }
 
 void mark_atom(Atom);
-void mark(Env* env);
 
 inline void visit(const char *address) {
     assert(address);
@@ -118,6 +117,19 @@ class Memory {
         t->function_pointer = nullptr;
 
         return t;
+    }
+
+    Env* alloc_env(Env* parent = nullptr) {
+        auto block = (HeapNode*)malloc(sizeof(HeapNode) + sizeof(Env));
+        memset(block, 0, sizeof(HeapNode) + sizeof(Env));
+        block->set_size(sizeof(Env));
+
+        Env* e = new (block->buff) Env(parent);
+        block->set_type(AtomType::Cons);
+        allocations.push_front(block);
+        ++total_allocations;
+
+        return e;
     }
 
     Cons* alloc_cons(Atom a, Cons* next) {

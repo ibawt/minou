@@ -14,28 +14,28 @@ namespace minou {
 
 class Env {
   public:
-    Env(Env* p = nullptr) : parent(p) {}
-
-    void set_parent(Env *p) {
-        parent = p;
-    }
 
     std::optional<Atom> lookup(const Symbol &key) {
         auto f = map.find(key.interned_value);
 
         if (f == map.end()) {
-            if (parent.has_value()) {
-                return parent.value()->lookup(key);
+            if (parent) {
+                fmt::print("this[{:x}] looking to parent {:x} for key: {}\n", (uintptr_t)this, (uintptr_t)parent,
+                           key.string());
+                return parent->lookup(key);
             }
+            fmt::print("this[{:x}] found no key, and no parent\n", (uintptr_t)this);
             return {};
         }
+        fmt::print("[{:x}] found: {} = {}\n", (uintptr_t)this, key.string(), f->second);
         return f->second;
     }
 
     void clear() {
         map.clear();
-        parent.reset();
     }
+
+    Env* get_parent() { return parent; }
 
     bool update(const Symbol &key, Atom value) {
         auto t = this;
@@ -48,8 +48,8 @@ class Env {
                 return true;
             }
 
-            if (parent.has_value()) {
-                t = parent.value();
+            if (parent) {
+                t = parent;
             } else {
                 return false;
             }
@@ -93,10 +93,14 @@ class Env {
         }
         return {};
     }
+    void visit();
 
   private:
+    Env(Env* p = nullptr) : parent(p) {}
+    friend class Memory;
+
     std::map<int, Atom> map;
-    std::optional<Env*> parent;
+    Env                *parent;
 };
 
 } // namespace minou

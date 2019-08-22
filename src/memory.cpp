@@ -34,19 +34,18 @@ void mark_atom(Atom a) {
     }
 }
 
-void mark(Env* env) {
-    env->for_each(
-        [](const std::string_view key UNUSED, Atom value) { mark_atom(value); });
-}
-
 void Lambda::visit()
 {
     minou::visit(reinterpret_cast<const char *>(this));
-    mark(env);
+    mark_atom(make_cons(arguments));
+    mark_atom(make_cons(body));
+
+    env->visit();
 }
 
 void Memory::free_node(HeapNode *h)
 {
+    fmt::print("free a thing\n");
     assert(is_heap_type(h->type()));
     switch (h->type()) {
     case AtomType::String: {
@@ -57,7 +56,8 @@ void Memory::free_node(HeapNode *h)
         auto a = (Lambda *)h->buff;
         delete a->native_name;
         a->native_name = nullptr;
-        delete a->env;
+        fmt::print("free'd an env: {:x}\n", (uintptr_t)a->env);
+        // delete a->env;
         a->env = nullptr;
         break;
     }
@@ -67,6 +67,11 @@ void Memory::free_node(HeapNode *h)
         consSlab.free((char *)h);
         return;
     }
+    case AtomType::Env: {
+        auto e = (Env*)h->buff;
+        e->~Env();
+        break;
+    }break;
     default:
         break;
     }
@@ -89,7 +94,7 @@ void Memory::sweep() {
 
 void Memory::mark_and_sweep(Env* root) {
     assert(root);
-    mark(root);
+    root->visit();
     sweep();
 }
 

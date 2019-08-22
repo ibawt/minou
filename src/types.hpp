@@ -21,7 +21,8 @@ enum class AtomType : uint8_t {
     String,
     Nil,
     Boolean,
-    Lambda
+    Lambda,
+    Env
 };
 
 static_assert(std::is_pod<AtomType>());
@@ -42,6 +43,8 @@ inline const std::string atom_type_string(const AtomType a) {
         return "boolean";
     case AtomType::Lambda:
         return "lambda";
+    case AtomType::Env:
+        return "env";
     }
 }
 
@@ -158,6 +161,8 @@ inline const int SYMBOL = 4;
 inline const int TAG_BITS = 3;
 inline const int TAG_MASK = bit_mask(3);
 
+class Env;
+
 struct Atom {
     uintptr_t value;
 
@@ -198,6 +203,11 @@ struct Atom {
     }
 
     int64_t integer() const { return value >> TAG_BITS; }
+
+    Env* env() const {
+        assert(get_type() == AtomType::Env);
+        return (Env*)value;
+    }
 
     Cons *cons() const {
         if (get_type() == AtomType::Nil) {
@@ -248,6 +258,10 @@ struct Atom {
     }
     bool is_pair() const { return get_type() == AtomType::Cons && value != 0; }
 };
+
+inline Atom make_env(const Env* e) {
+    return Atom{ reinterpret_cast<uintptr_t>(e) };
+}
 
 inline Atom make_boolean(const bool b) {
     return Atom{BOOL | (static_cast<uintptr_t>(b) << TAG_BITS)};
@@ -450,7 +464,6 @@ template <> struct formatter<minou::Atom> {
         switch (a.get_type()) {
         case minou::AtomType::Number:
             return format_to(ctx.begin(), "{}", a.integer());
-            break;
         case minou::AtomType::Cons: {
             auto it = ctx.out();
             it = fmt::format_to(it, "(");
@@ -461,19 +474,18 @@ template <> struct formatter<minou::Atom> {
                 }
             }
             return format_to(it, ")");
-        } break;
+        }
         case minou::AtomType::Symbol:
             return format_to(ctx.begin(), a.symbol().string());
-            break;
         case minou::AtomType::String:
             return format_to(ctx.begin(), "\"{}\"", *a.string());
-            break;
         case minou::AtomType::Lambda: {
             return format_to(ctx.begin(), "{}", *a.lambda());
         }
         case minou::AtomType::Nil:
             return format_to(ctx.begin(), "nil");
-            break;
+        case minou::AtomType::Env:
+            return format_to(ctx.begin(), "env");
         case minou::AtomType::Boolean:
             return format_to(ctx.begin(), (a.boolean() ? "#t" : "#f"));
         }
