@@ -1,7 +1,6 @@
 #ifndef COMPILER_H_
 #define COMPILER_H_
 
-#include "base.hpp"
 #include "types.hpp"
 #include "env.hpp"
 #include "kaleidoscope.h"
@@ -9,12 +8,14 @@
 
 namespace minou {
 
+class Engine;
+
 class NativeEngine
 {
     llvm::LLVMContext                           context;
     std::unique_ptr<llvm::orc::KaleidoscopeJIT> jit;
     Engine *engine;
-    Env * env;
+    Env    *env;
 
 public:
     NativeEngine(Engine *engine, Env* env) : engine(engine), env(env) {

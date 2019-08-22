@@ -1,5 +1,6 @@
 #include "minou.hpp"
 #include "parser.hpp"
+#include "engine.hpp"
 #include "gtest/gtest.h"
 #include <memory>
 #include <string>

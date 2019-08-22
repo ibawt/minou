@@ -11,15 +11,10 @@
 #include <string>
 
 namespace minou {
-class Env;
-
-typedef Env *EnvPtr;
-class Engine;
 
 class Env {
   public:
-    Env(Env* p) : parent(p) {}
-    Env(Engine *engine) { default_env(engine); }
+    Env(Env* p = nullptr) : parent(p) {}
 
     void set_parent(Env *p) {
         parent = p;
@@ -68,7 +63,6 @@ class Env {
     }
 
     void set(const Symbol &key, Atom value) {
-        // fmt::print("setting: {} = {}\n", key.string(), value);
         map[key.interned_value] = value;
     }
 
@@ -101,8 +95,6 @@ class Env {
     }
 
   private:
-    void default_env(Engine *);
-
     std::map<int, Atom> map;
     std::optional<Env*> parent;
 };

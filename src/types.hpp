@@ -1,7 +1,6 @@
 #ifndef TYPES_H_
 #define TYPES_H_
 
-#include <assert.h>
 #include <functional>
 #include <string>
 #include <type_traits>
@@ -72,8 +71,7 @@ static_assert(std::is_pod<Boolean>());
 
 using String = std::string;
 
-class Symbol {
-  public:
+struct Symbol {
     static Symbol from(const char *s) { return Symbol{intern(s)}; }
     static Symbol from(const std::string &s) { return Symbol{intern(s)}; }
 
@@ -265,8 +263,7 @@ inline Atom make_cons(const Cons *c) {
     if (!c) {
         return make_nil();
     }
-    Atom a{reinterpret_cast<uintptr_t>(c)};
-    return a;
+    return Atom{reinterpret_cast<uintptr_t>(c)};
 }
 
 inline Atom make_symbol(const Symbol s) {

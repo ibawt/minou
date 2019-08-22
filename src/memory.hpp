@@ -3,15 +3,13 @@
 
 #include "env.hpp"
 #include "types.hpp"
-#include <assert.h>
 #include <list>
 #include <memory>
-#include <stddef.h>
-#include <string.h>
+#include <cstddef>
+#include <cstring>
 #include <vector>
 #include "slab.hpp"
 #include <string>
-#include <cstring>
 
 namespace minou {
 
@@ -28,8 +26,9 @@ template <> constexpr inline AtomType type(Cons *) { return AtomType::Cons; }
 template <> constexpr inline AtomType type(Lambda *) {
     return AtomType::Lambda;
 }
+
 void mark_atom(Atom);
-void mark(EnvPtr env);
+void mark(Env* env);
 
 inline void visit(const char *address) {
     assert(address);
@@ -87,7 +86,7 @@ class Memory {
         return head;
     }
 
-    void mark_and_sweep(EnvPtr root);
+    void mark_and_sweep(Env* root);
 
     String* alloc_string(const char *b, int len) {
         auto block = (HeapNode*)malloc(sizeof(HeapNode) + sizeof(String));
@@ -125,7 +124,6 @@ class Memory {
         auto block = consSlab.get();
         int len = sizeof(HeapNode) + sizeof(Cons);
         memset(block, 0, len);
-        // auto hn = new (block) HeapNode(len);
         auto hn = (HeapNode*)block;
         hn->set_size(len);
 

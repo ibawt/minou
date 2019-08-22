@@ -34,7 +34,7 @@ void mark_atom(Atom a) {
     }
 }
 
-void mark(EnvPtr env) {
+void mark(Env* env) {
     env->for_each(
         [](const std::string_view key UNUSED, Atom value) { mark_atom(value); });
 }

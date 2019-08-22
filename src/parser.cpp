@@ -58,15 +58,15 @@ class Buffer {
     size_t position = 0;
 };
 
-static ParseResult error(const char *s) { return std::string(s); }
+static Result<Atom> error(const char *s) { return std::string(s); }
 
-static Atom get_parse_atom(const ParseResult &p) { return std::get<Atom>(p); }
+static Atom get_parse_atom(const Result<Atom> &p) { return std::get<Atom>(p); }
 
 struct Parser {
     Buffer buff;
     Memory &memory;
 
-    ParseResult quote_atom(Atom a) {
+    Result<Atom> quote_atom(Atom a) {
         std::vector<Atom> lis{make_symbol(Symbol::from("quote")), a};
         return make_cons(memory.make_list(lis));
     }
@@ -94,7 +94,7 @@ struct Parser {
         }
     }
 
-    ParseResult parse_list() {
+    Result<Atom> parse_list() {
         std::vector<Atom> list;
 
         for (;;) {
@@ -119,7 +119,7 @@ struct Parser {
         return make_cons(memory.make_list(list));
     }
 
-    ParseResult read_string() {
+    Result<Atom> read_string() {
         std::vector<char> out;
 
         for (;;) {
@@ -147,7 +147,7 @@ struct Parser {
         }
     }
 
-    ParseResult parse_atom() {
+    Result<Atom> parse_atom() {
         for (;;) {
             int c = buff.peek();
             switch (c) {
@@ -179,7 +179,7 @@ struct Parser {
         throw std::runtime_error("invalid parse");
     }
 
-    ParseResult read_atom() {
+    Result<Atom> read_atom() {
         if (buff.peek() == '"') {
             buff.next();
             return read_string();
@@ -213,7 +213,7 @@ struct Parser {
     }
 };
 
-ParseResult parse(Memory &mem, const std::string_view &s) {
+Result<Atom> parse(Memory &mem, const std::string_view &s) {
     Parser p{Buffer(s), mem};
     return p.parse_atom();
 }

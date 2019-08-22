@@ -25,6 +25,7 @@ class Error {
 template <typename T> inline bool is_error(std::variant<T, const Error> v) {
     return std::holds_alternative<const Error>(v);
 }
+
 template <typename T> using Result = std::variant<T, const Error>;
 
 template <typename T> const Error get_error(Result<T> result) {

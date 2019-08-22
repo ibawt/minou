@@ -16,7 +16,7 @@ Result<Atom> Engine::eval(const std::string_view &s) {
         return atom;
     }
 
-    return nativeEngine.execute(get_value(atom));
+    return native_engine.execute(get_value(atom));
 }
 
 } // namespace minou
