@@ -4,18 +4,16 @@
 #include <assert.h>
 #include <functional>
 #include <string>
-#include <variant>
 #include <type_traits>
+#include <variant>
 
-#include "symbol_intern.hpp"
 #include "fmt/format.h"
+#include "symbol_intern.hpp"
 #include <cstring>
 
 namespace minou {
 
-inline constexpr int bit_mask(int num_bits) {
-    return (1 << num_bits) - 1;
-}
+inline constexpr int bit_mask(int num_bits) { return (1 << num_bits) - 1; }
 
 enum class AtomType : uint8_t {
     Number = 0,
@@ -30,7 +28,7 @@ enum class AtomType : uint8_t {
 static_assert(std::is_pod<AtomType>());
 
 inline const std::string atom_type_string(const AtomType a) {
-    switch(a) {
+    switch (a) {
     case AtomType::Number:
         return "number";
     case AtomType::Cons:
@@ -61,9 +59,7 @@ constexpr inline bool is_heap_type(const AtomType a) {
 }
 
 struct Boolean {
-    static Boolean of(bool b) {
-        return Boolean{b};
-    }
+    static Boolean of(bool b) { return Boolean{b}; }
 
     bool b;
 
@@ -78,29 +74,23 @@ using String = std::string;
 
 class Symbol {
   public:
-    static Symbol from(const char *s) {
-        return Symbol{ intern(s) };
-    }
-    static Symbol from(const std::string& s) {
-        return Symbol{ intern(s) };
-    }
+    static Symbol from(const char *s) { return Symbol{intern(s)}; }
+    static Symbol from(const std::string &s) { return Symbol{intern(s)}; }
 
-    static Symbol from(int i) {
-        return Symbol{ i };
-    }
+    static Symbol from(int i) { return Symbol{i}; }
 
     bool operator==(const Symbol &other) const {
         return interned_value == other.interned_value;
     }
     bool operator<(const Symbol &other) const {
-        return string() < other.string() ;
+        return string() < other.string();
     }
 
     bool operator==(const char *s) const {
         return strcmp(s, symbol_to_string(interned_value).c_str()) == 0;
     }
 
-    const std::string& string() const {
+    const std::string &string() const {
         return symbol_to_string(interned_value);
     }
 
@@ -110,9 +100,7 @@ class Symbol {
 static_assert(std::is_pod<Symbol>());
 
 struct Number {
-    static Number from(int64_t i) {
-        return Number { i };
-    }
+    static Number from(int64_t i) { return Number{i}; }
 
     union {
         int64_t value;
@@ -127,7 +115,7 @@ static_assert(std::is_pod<Number>());
 struct Cons;
 struct Lambda;
 
-inline const int USED   = 1;
+inline const int USED = 1;
 inline const int LOCKED = 2;
 
 struct HeapNode {
@@ -136,40 +124,26 @@ struct HeapNode {
     // 16-63 size
     uint64_t header;
     // the actual thing
-    char     buff[];
+    char buff[];
 
-    AtomType type() const {
-        return AtomType(header & 0xff);
-    }
+    AtomType type() const { return AtomType(header & 0xff); }
 
     void set_type(AtomType t) {
         header &= ~0xff;
         header |= (int)t;
     }
 
-    void set_size(int size) {
-        header = size << 16;
-    }
+    void set_size(int size) { header = size << 16; }
 
-    int flags() const {
-        return (header >> 8) & 0xff;
-    }
+    int flags() const { return (header >> 8) & 0xff; }
 
-    void set_flag(int flag) {
-        header |= flag << 8;
-    }
+    void set_flag(int flag) { header |= flag << 8; }
 
-    void clear_flag(int flag) {
-        header &= ~(flag << 8);
-    }
+    void clear_flag(int flag) { header &= ~(flag << 8); }
 
-    size_t size() const {
-        return header >> 16;
-    }
+    size_t size() const { return header >> 16; }
 
-    bool collectable() const {
-        return flags() == 0;
-    }
+    bool collectable() const { return flags() == 0; }
 
     bool is_locked() { return flags() & LOCKED; }
     bool has_visited() { return flags() & USED; }
@@ -179,19 +153,17 @@ static_assert(std::is_pod<HeapNode>());
 
 // atom tagging
 inline const int INTEGER = 1;
-inline const int BOOL    = 2;
-inline const int NIL     = 3;
-inline const int SYMBOL  = 4;
+inline const int BOOL = 2;
+inline const int NIL = 3;
+inline const int SYMBOL = 4;
 
-inline const int TAG_BITS  = 3;
-inline const int TAG_MASK  = bit_mask(3);
+inline const int TAG_BITS = 3;
+inline const int TAG_MASK = bit_mask(3);
 
 struct Atom {
     uintptr_t value;
 
-    void set_tag(int tag) {
-        value = (value & ~TAG_MASK) | tag;
-    }
+    void set_tag(int tag) { value = (value & ~TAG_MASK) | tag; }
 
     void set_type(AtomType t) {
         switch (t) {
@@ -230,7 +202,7 @@ struct Atom {
     int64_t integer() const { return value >> TAG_BITS; }
 
     Cons *cons() const {
-        if(get_type() == AtomType::Nil) {
+        if (get_type() == AtomType::Nil) {
             return nullptr;
         }
         assert(get_type() == AtomType::Cons);
@@ -269,26 +241,28 @@ struct Atom {
         }
     }
 
-    bool is_false() const { return get_type() == AtomType::Boolean && !boolean();}
+    bool is_false() const {
+        return get_type() == AtomType::Boolean && !boolean();
+    }
     bool is_nil() const { return get_type() == AtomType::Nil; }
-    bool is_list() const { return get_type() == AtomType::Cons || get_type() == AtomType::Nil; }
+    bool is_list() const {
+        return get_type() == AtomType::Cons || get_type() == AtomType::Nil;
+    }
     bool is_pair() const { return get_type() == AtomType::Cons && value != 0; }
 };
 
 inline Atom make_boolean(const bool b) {
-    return Atom{ BOOL | (static_cast<uintptr_t>(b) << TAG_BITS )};
+    return Atom{BOOL | (static_cast<uintptr_t>(b) << TAG_BITS)};
 }
 
-inline Atom make_nil() {
-    return Atom{ NIL };
-}
+inline Atom make_nil() { return Atom{NIL}; }
 
 inline Atom make_integer(const int64_t i) {
-    return Atom{ INTEGER | (static_cast<uint64_t>(i) << TAG_BITS) };
+    return Atom{INTEGER | (static_cast<uint64_t>(i) << TAG_BITS)};
 }
 
 inline Atom make_cons(const Cons *c) {
-    if(!c) {
+    if (!c) {
         return make_nil();
     }
     Atom a{reinterpret_cast<uintptr_t>(c)};
@@ -296,10 +270,11 @@ inline Atom make_cons(const Cons *c) {
 }
 
 inline Atom make_symbol(const Symbol s) {
-    return Atom{ SYMBOL | (static_cast<uintptr_t>(s.interned_value) << TAG_BITS)};
+    return Atom{SYMBOL |
+                (static_cast<uintptr_t>(s.interned_value) << TAG_BITS)};
 }
 
-inline Atom make_lambda(const Lambda *l)  {
+inline Atom make_lambda(const Lambda *l) {
     return Atom{reinterpret_cast<uintptr_t>(l)};
 }
 
@@ -307,29 +282,28 @@ inline Atom make_string(const String *s) {
     return Atom{reinterpret_cast<uintptr_t>(s)};
 }
 
-static_assert(sizeof(Atom)== 8);
+static_assert(sizeof(Atom) == 8);
 static_assert(std::is_pod<Atom>());
 
 struct Cons {
-    Atom  car;
+    Atom car;
     Cons *cdr;
 
-    static Cons from(Atom car, Cons *cdr=nullptr) {
-        return Cons{car, cdr};
-    }
+    static Cons from(Atom car, Cons *cdr = nullptr) { return Cons{car, cdr}; }
 
     class iterator {
         Cons *node;
-    public:
-        iterator(Cons* c) : node(c) {}
+
+      public:
+        iterator(Cons *c) : node(c) {}
 
         using difference_type = ptrdiff_t;
-        using value_type = Cons*;
-        using pointer = const Cons**;
-        using reference = const Cons*&;
+        using value_type = Cons *;
+        using pointer = const Cons **;
+        using reference = const Cons *&;
         using iterator_category = std::forward_iterator_tag;
 
-        iterator& operator++() {
+        iterator &operator++() {
             node = node->cdr;
             return *this;
         }
@@ -339,22 +313,19 @@ struct Cons {
             return r;
         }
 
-        bool operator==(iterator other) const {
-            return node == other.node;
-        }
+        bool operator==(iterator other) const { return node == other.node; }
 
-        bool operator!=(iterator other) const {
-            return node != other.node;
-        }
+        bool operator!=(iterator other) const { return node != other.node; }
 
-        Cons* operator*() { return node; }
-        Cons* operator->() { return node; }
+        Cons *operator*() { return node; }
+        Cons *operator->() { return node; }
     };
 
     class const_iterator {
-        const Cons* node;
-    public:
-        const_iterator(const Cons* c) : node(c) {}
+        const Cons *node;
+
+      public:
+        const_iterator(const Cons *c) : node(c) {}
 
         using difference_type = ptrdiff_t;
         using value_type = const Cons *;
@@ -372,38 +343,34 @@ struct Cons {
             return r;
         }
 
-        bool operator==(const_iterator other) const { return node == other.node; }
+        bool operator==(const_iterator other) const {
+            return node == other.node;
+        }
 
-        bool operator!=(const_iterator other) const { return node != other.node; }
+        bool operator!=(const_iterator other) const {
+            return node != other.node;
+        }
 
         const Cons *operator*() { return node; }
         const Cons *operator->() { return node; }
     };
 
-    const_iterator begin() const {
-        return const_iterator(this);
-    }
+    const_iterator begin() const { return const_iterator(this); }
 
-    const_iterator end() const {
-        return const_iterator(nullptr);
-    }
+    const_iterator end() const { return const_iterator(nullptr); }
 
-    iterator begin() {
-        return iterator(this);
-    }
+    iterator begin() { return iterator(this); }
 
-    iterator end() {
-        return iterator(nullptr);
-    }
+    iterator end() { return iterator(nullptr); }
 
-    bool is_end() const {
-        return cdr;
-    }
+    bool is_end() const { return cdr; }
 
     // O(n)
     int length() const {
         int sum = 0;
-        for(auto i : *this) { ++sum; }
+        for (auto i : *this) {
+            ++sum;
+        }
         return sum;
     }
 };
@@ -448,10 +415,10 @@ class Env;
 struct Lambda {
     Cons *arguments;
     Cons *body;
-    Env  *env;
+    Env *env;
 
     std::string *native_name;
-    void        *function_pointer;
+    void *function_pointer;
 
     void visit();
 };
@@ -468,7 +435,8 @@ template <> struct formatter<minou::Lambda> {
 
     template <typename FormatContext>
     auto format(const minou::Lambda &a, FormatContext &ctx) {
-        return format_to(ctx.begin(), "(lambda {} {})", minou::make_cons(a.arguments),
+        return format_to(ctx.begin(), "(lambda {} {})",
+                         minou::make_cons(a.arguments),
                          minou::make_cons(a.body));
     }
 };
@@ -482,42 +450,53 @@ template <> struct formatter<minou::Atom> {
 
     template <typename FormatContext>
     auto format(const minou::Atom &a, FormatContext &ctx) {
-           switch (a.get_type()) {
-           case minou::AtomType::Number:
-               return format_to(ctx.begin(), "{}", a.integer());
-               break;
-           case minou::AtomType::Cons: {
-               auto it = ctx.out();
-               it = fmt::format_to(it, "(");
-               for( auto c : *a.cons()) {
-                   it = fmt::format_to(it, "{}", c->car);
-                   if( c->cdr ) {
-                       it = fmt::format_to(it, " ");
-                   }
-               }
-               return format_to(it, ")");
-           } break;
-           case minou::AtomType::Symbol:
-               return format_to(ctx.begin(), a.symbol().string());
-               break;
-           case minou::AtomType::String:
-               return format_to(ctx.begin(), "\"{}\"", *a.string());
-               break;
-           case minou::AtomType::Lambda: {
-               return format_to(ctx.begin(), "{}", *a.lambda());
-           }
-           case minou::AtomType::Nil:
-               return format_to(ctx.begin(), "nil");
-               break;
-           case minou::AtomType::Boolean:
-               return format_to(ctx.begin(), (a.boolean() ? "#t" : "#f"));
-           }
+        switch (a.get_type()) {
+        case minou::AtomType::Number:
+            return format_to(ctx.begin(), "{}", a.integer());
+            break;
+        case minou::AtomType::Cons: {
+            auto it = ctx.out();
+            it = fmt::format_to(it, "(");
+            for (auto c : *a.cons()) {
+                it = fmt::format_to(it, "{}", c->car);
+                if (c->cdr) {
+                    it = fmt::format_to(it, " ");
+                }
+            }
+            return format_to(it, ")");
+        } break;
+        case minou::AtomType::Symbol:
+            return format_to(ctx.begin(), a.symbol().string());
+            break;
+        case minou::AtomType::String:
+            return format_to(ctx.begin(), "\"{}\"", *a.string());
+            break;
+        case minou::AtomType::Lambda: {
+            return format_to(ctx.begin(), "{}", *a.lambda());
+        }
+        case minou::AtomType::Nil:
+            return format_to(ctx.begin(), "nil");
+            break;
+        case minou::AtomType::Boolean:
+            return format_to(ctx.begin(), (a.boolean() ? "#t" : "#f"));
+        }
 
-           return format_to(ctx.begin(), "invalid type");
+        return format_to(ctx.begin(), "invalid type");
     }
 };
 
-template <> struct formatter<minou::Cons*> {
+template <> struct formatter<minou::AtomType> {
+    template <typename ParseContext> constexpr auto parse(ParseContext &ctx) {
+        return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const minou::AtomType a, FormatContext &ctx) {
+        return format_to(ctx.begin(), "{}", minou::atom_type_string(a));
+    }
+};
+
+template <> struct formatter<minou::Cons *> {
     template <typename ParseContext> constexpr auto parse(ParseContext &ctx) {
         return ctx.begin();
     }
@@ -525,7 +504,6 @@ template <> struct formatter<minou::Cons*> {
     template <typename FormatContext>
     auto format(const minou::Cons *c, FormatContext &ctx) {
         return format_to(ctx.begin(), "{}", minou::make_cons(c));
-
     }
 };
 } // namespace fmt

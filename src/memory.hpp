@@ -2,7 +2,6 @@
 #define MEMORY_H_
 
 #include "env.hpp"
-#include "eval.hpp"
 #include "types.hpp"
 #include <assert.h>
 #include <list>

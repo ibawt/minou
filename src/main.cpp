@@ -2,7 +2,6 @@
 #include <readline/readline.h>
 
 #include "base.hpp"
-#include "eval.hpp"
 #include "main.hpp"
 #include "minou.hpp"
 #include "parser.hpp"

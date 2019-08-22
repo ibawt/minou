@@ -5,7 +5,6 @@
 #include "base.hpp"
 #include "engine.hpp"
 #include "env.hpp"
-#include "eval.hpp"
 #include "types.hpp"
 
 namespace minou {

@@ -14,13 +14,13 @@ class Error {
   public:
     Error(const std::string &s) : message(s) {}
     Error(const char *s) : message(s) {}
+    virtual ~Error() {}
 
     const std::string &get_message() const { return message; }
 
   private:
     const std::string message;
 };
-
 
 template <typename T> inline bool is_error(std::variant<T, const Error> v) {
     return std::holds_alternative<const Error>(v);

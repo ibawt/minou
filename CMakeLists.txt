@@ -56,8 +56,6 @@ set(files
   src/minou.cpp
   src/parser.cpp
   src/parser.hpp
-  src/eval.cpp
-  src/eval.hpp
   src/symbol_intern.hpp
   src/symbol_interner.cpp
   src/compiler.hpp

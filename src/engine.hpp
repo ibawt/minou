@@ -2,7 +2,6 @@
 #define ENGINE_H_
 
 #include "env.hpp"
-#include "eval.hpp"
 #include "compiler.hpp"
 #include "symbol_intern.hpp"
 #include "memory.hpp"
