@@ -27,7 +27,6 @@ enum class AtomType : uint8_t {
     Lambda
 };
 
-
 static_assert(std::is_pod<AtomType>());
 
 inline const std::string atom_type_string(const AtomType a) {
@@ -82,7 +81,6 @@ class Symbol {
     static Symbol from(const char *s) {
         return Symbol{ intern(s) };
     }
-    // Symbol(const char *s) : interned_value(intern(s)) {}
     static Symbol from(const std::string& s) {
         return Symbol{ intern(s) };
     }
@@ -278,7 +276,7 @@ struct Atom {
 };
 
 inline Atom make_boolean(const bool b) {
-    return Atom{ BOOL | (uintptr_t)(b << TAG_BITS )};
+    return Atom{ BOOL | (static_cast<uintptr_t>(b) << TAG_BITS )};
 }
 
 inline Atom make_nil() {
@@ -298,7 +296,7 @@ inline Atom make_cons(const Cons *c) {
 }
 
 inline Atom make_symbol(const Symbol s) {
-    return Atom{ SYMBOL | ((uint64_t)s.interned_value << TAG_BITS)};
+    return Atom{ SYMBOL | (static_cast<uintptr_t>(s.interned_value) << TAG_BITS)};
 }
 
 inline Atom make_lambda(const Lambda *l)  {
@@ -313,7 +311,7 @@ static_assert(sizeof(Atom)== 8);
 static_assert(std::is_pod<Atom>());
 
 struct Cons {
-    Atom car;
+    Atom  car;
     Cons *cdr;
 
     static Cons from(Atom car, Cons *cdr=nullptr) {
@@ -455,8 +453,7 @@ struct Lambda {
     std::string *native_name;
     void        *function_pointer;
 
-    void visit() {
-    }
+    void visit();
 };
 
 static_assert(std::is_pod<Lambda>());
@@ -476,6 +473,7 @@ template <> struct formatter<minou::Lambda> {
     }
 };
 } // namespace fmt
+
 namespace fmt {
 template <> struct formatter<minou::Atom> {
     template <typename ParseContext> constexpr auto parse(ParseContext &ctx) {
@@ -503,7 +501,7 @@ template <> struct formatter<minou::Atom> {
                return format_to(ctx.begin(), a.symbol().string());
                break;
            case minou::AtomType::String:
-               return format_to(ctx.begin(), *a.string());
+               return format_to(ctx.begin(), "\"{}\"", *a.string());
                break;
            case minou::AtomType::Lambda: {
                return format_to(ctx.begin(), "{}", *a.lambda());

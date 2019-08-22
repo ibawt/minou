@@ -316,6 +316,7 @@ class CompilerContext {
             envArgs.push_back(it);
             c = c->cdr;
         }
+
         auto e = new Env(env);
 
         CompilerContext compiler(context, cbuilder, module, engine, e);
@@ -332,7 +333,7 @@ class CompilerContext {
             return "error in lambda verify";
         }
 
-        auto l = engine->get_memory().alloc_lambda(a.cons()->cdr, a.cons()->cdr->cdr, e);
+        auto l = engine->get_memory().alloc_lambda(a.cons()->cdr->car.cons(), a.cons()->cdr->cdr, e);
         l->native_name = new std::string(name);
 
         for (auto [key, value] : compiler.get_lambdas()) {

@@ -40,6 +40,12 @@ void mark(EnvPtr env) {
         [](const std::string_view key UNUSED, Atom value) { mark_atom(value); });
 }
 
+void Lambda::visit()
+{
+    minou::visit(reinterpret_cast<const char *>(this));
+    mark(env);
+}
+
 void Memory::free_node(HeapNode *h)
 {
     assert(is_heap_type(h->type()));
@@ -50,7 +56,10 @@ void Memory::free_node(HeapNode *h)
     } break;
     case AtomType::Lambda: {
         auto a = (Lambda *)h->buff;
-        a->~Lambda();
+        delete a->native_name;
+        a->native_name = nullptr;
+        delete a->env;
+        a->env = nullptr;
         break;
     }
     case AtomType::Cons: {
@@ -67,22 +76,22 @@ void Memory::free_node(HeapNode *h)
 
 
 void Memory::sweep() {
-    // for (auto it = allocations.begin(); it != allocations.end();) {
-    //     auto h = *it;
-    //     if (h->collectable()) {
-    //         free_node(h);
-    //         it = allocations.erase(it);
-    //     } else {
-    //         h->clear_flag(USED);
-    //         ++it;
-    //     }
-    // }
+    for (auto it = allocations.begin(); it != allocations.end();) {
+        auto h = *it;
+        if (h->collectable()) {
+            free_node(h);
+            it = allocations.erase(it);
+        } else {
+            h->clear_flag(USED);
+            ++it;
+        }
+    }
 } // namespace minou
 
-void Memory::mark_and_sweep(EnvPtr root) {
-    // assert(root);
-    // mark(root);
-    // sweep();
+void Memory::mark_and_sweep(Env* root) {
+    assert(root);
+    mark(root);
+    sweep();
 }
 
 } // namespace minou

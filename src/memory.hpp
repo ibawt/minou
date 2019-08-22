@@ -16,7 +16,6 @@
 
 namespace minou {
 
-class Lambda;
 class Env;
 
 template <typename T> AtomType type(T);
@@ -90,23 +89,6 @@ class Memory {
     }
 
     void mark_and_sweep(EnvPtr root);
-
-    // template <typename T, typename... Args> T *alloc(Args &&... args) {
-    //     int len = sizeof(T);
-    //     auto block = malloc(sizeof(HeapNode) + len);
-    //     memset(block, 0, sizeof(HeapNode) + len);
-    //     auto hn = (HeapNode*)block;
-    //     hn->set_size(len);
-
-    //     allocations.push_front(hn);
-    //     auto t = new ((char *)block + offsetof(HeapNode, buff))
-    //         T(std::forward<Args>(args)...);
-
-    //     Atom a(t);
-    //     ++total_allocations;
-    //     assert( ((intptr_t)t & TAG_MASK) == 0 );
-    //     return (T*)a.value;
-    // }
 
     String* alloc_string(const char *b, int len) {
         auto block = (HeapNode*)malloc(sizeof(HeapNode) + sizeof(String));
