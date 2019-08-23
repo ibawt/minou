@@ -4,7 +4,7 @@
 namespace minou {
 
 void Env::visit() {
-    minou::visit(reinterpret_cast<const char*>(this));
+    minou::visit(reinterpret_cast<char*>(this));
     for( auto& [key, value] : map ) {
         mark_atom(value);
     }
