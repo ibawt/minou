@@ -406,13 +406,29 @@ inline Atom cadddr(Cons *cons) { return cons->cdr->cdr->cdr->car; }
 
 class Env;
 
+struct Argument {
+    Symbol symbol;
+    bool   is_closed_over;
+
+};
+
+inline std::vector<Argument>* make_arguments(Cons *args) {
+    auto out = new std::vector<Argument>();
+    out->reserve(args->length());
+
+    for( auto i : *args) {
+        out->push_back(Argument{ .symbol = i->car.symbol(), .is_closed_over = false } );
+    }
+    return out;
+}
+
 struct Lambda {
-    Cons *arguments;
     Cons *body;
     Env  *env;
 
-    std::string *native_name;
-    void        *function_pointer;
+    std::vector<Argument> *arguments;
+    std::string           *native_name;
+    void                  *function_pointer;
 
     void visit();
 };
@@ -422,6 +438,38 @@ static_assert(std::is_pod<Lambda>());
 } // namespace minou
 
 namespace fmt {
+
+template<> struct formatter<minou::Argument> {
+    template <typename ParseContext> constexpr auto parse(ParseContext &ctx) {
+        return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const minou::Argument &a, FormatContext &ctx) {
+        return format_to(ctx.begin(), "[{} closed_over: {}]", a.symbol.string(), a.is_closed_over);
+    }
+};
+
+template<> struct formatter<std::vector<minou::Argument>> {
+    template <typename ParseContext> constexpr auto parse(ParseContext &ctx) {
+        return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const std::vector<minou::Argument> &v, FormatContext &ctx) {
+        // return format_to(ctx.begin(), "[{} closed_over: {}]", a.symbol.string(), a.is_closed_over);
+        auto it = format_to(ctx.begin(), "(");
+        for( auto i = v.begin() ; i != v.end() ; ) {
+            it = format_to(it, "{}", *i);
+            if( ++i != v.end()) {
+                it = format_to(it, " ");
+            }
+        }
+        return format_to(it, ")");
+    }
+};
+
+
 template <> struct formatter<minou::Lambda> {
     template <typename ParseContext> constexpr auto parse(ParseContext &ctx) {
         return ctx.begin();
@@ -429,8 +477,7 @@ template <> struct formatter<minou::Lambda> {
 
     template <typename FormatContext>
     auto format(const minou::Lambda &a, FormatContext &ctx) {
-        return format_to(ctx.begin(), "(lambda {} {})",
-                         minou::make_cons(a.arguments),
+        return format_to(ctx.begin(), "(lambda {} {})", *a.arguments,
                          minou::make_cons(a.body));
     }
 };

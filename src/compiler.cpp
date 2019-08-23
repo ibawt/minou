@@ -392,30 +392,30 @@ class CompilerContext {
 
     std::map<std::string, Lambda *> &get_lambdas() { return lambdas; }
 
-    bool is_in_lambda(const std::string& s) {
-        if(!current_lambda)
-            return false;
+    // bool is_in_lambda(const std::string& s) {
+    //     if(!current_lambda)
+    //         return false;
 
-        for( auto c : *current_lambda->arguments) {
-            if( c->car.symbol().string() == s) {
-                return true;
-            }
-        }
-        return false;
-    }
+    //     for( auto c : *current_lambda->arguments) {
+    //         if( c->car.symbol().string() == s) {
+    //             return true;
+    //         }
+    //     }
+    //     return false;
+    // }
 
-    bool is_symbol_in_tree(const std::string& s) {
-        if( is_in_lambda(s)) {
-            return true;
-        }
+    // bool is_symbol_in_tree(const std::string& s) {
+    //     if( is_in_lambda(s)) {
+    //         return true;
+    //     }
 
-        if(parent) {
-            if( parent->is_symbol_in_tree(s)) {
-                return true;
-            }
-        }
-        return false;
-    }
+    //     if(parent) {
+    //         if( parent->is_symbol_in_tree(s)) {
+    //             return true;
+    //         }
+    //     }
+    //     return false;
+    // }
 
     std::vector<std::string> get_free_variables(Atom a) {
         std::vector<std::string> vars;
@@ -436,7 +436,6 @@ class CompilerContext {
 
 
   private:
-    Lambda          *current_lambda;
     CompilerContext *parent;
     Env *env;
     Engine *engine;

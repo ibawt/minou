@@ -102,7 +102,7 @@ class Memory {
         auto block = alloc<Lambda>();
         auto t = reinterpret_cast<Lambda*>(block->buff);
         block->set_type(AtomType::Lambda);
-        t->arguments = args;
+        t->arguments = make_arguments(args);
         t->body = body;
         t->env = env;
         t->native_name = nullptr;

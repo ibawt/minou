@@ -37,9 +37,7 @@ void mark_atom(Atom a) {
 void Lambda::visit()
 {
     minou::visit(reinterpret_cast<char *>(this));
-    mark_atom(make_cons(arguments));
     mark_atom(make_cons(body));
-
     env->visit();
 }
 
@@ -54,6 +52,7 @@ void Memory::free_node(HeapNode *h)
     case AtomType::Lambda: {
         auto a = reinterpret_cast<Lambda *>(h->buff);
         delete a->native_name;
+        delete a->arguments;
         a->native_name = nullptr;
         break;
     }

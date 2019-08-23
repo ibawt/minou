@@ -214,7 +214,7 @@ struct Parser {
 };
 
 Result<Atom> parse(Memory &mem, const std::string_view &s) {
-    Parser p{Buffer(s), mem};
+    Parser p{s, mem};
     return p.parse_atom();
 }
 
