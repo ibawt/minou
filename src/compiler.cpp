@@ -32,7 +32,6 @@ namespace minou {
 extern "C" {
 API int64_t env_set(Env *env, Atom sym, Atom value) {
     env->set(sym.symbol(), value);
-    fmt::print("[{:x}] setting {} to {}\n", (uintptr_t)env, sym, value);
     return sym.value;
 }
 
@@ -317,8 +316,6 @@ class CompilerContext {
         }
 
         auto e = engine->get_memory().alloc_env(env);
-
-        fmt::print("{} has env of {:x}\n", name, (uintptr_t)e);
 
         CompilerContext compiler(context, cbuilder, module, engine, e);
 

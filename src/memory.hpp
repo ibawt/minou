@@ -123,8 +123,7 @@ class Memory {
         auto block = (HeapNode*)malloc(sizeof(HeapNode) + sizeof(Env));
         memset(block, 0, sizeof(HeapNode) + sizeof(Env));
         block->set_size(sizeof(Env));
-
-        Env* e = new (block->buff) Env(parent);
+        auto e = new (block->buff) Env(parent);
         block->set_type(AtomType::Env);
         allocations.push_front(block);
         ++total_allocations;

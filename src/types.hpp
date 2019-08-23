@@ -27,7 +27,7 @@ enum class AtomType : uint8_t {
 
 static_assert(std::is_pod<AtomType>());
 
-inline const std::string atom_type_string(const AtomType a) {
+inline const std::string_view atom_type_string(const AtomType a) {
     switch (a) {
     case AtomType::Number:
         return "number";
