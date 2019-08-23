@@ -12,7 +12,11 @@ namespace minou {
 class Engine {
   public:
     Engine() : global(memory.alloc_env()), native_engine(this, global) {}
-    ~Engine() { memory.mark_and_sweep(global); }
+    ~Engine() {
+        global->clear();
+        memory.mark_and_sweep(global);
+    }
+
     Result<Atom> eval(const std::string_view &s);
     Result<Atom> eval(const char *s) { return eval(std::string_view(s)); }
     Result<Atom> parse(const std::string_view &s);

@@ -134,7 +134,9 @@ struct HeapNode {
         header |= (int)t;
     }
 
-    void set_size(int size) { header = size << 16; }
+    void set_size(int size) {
+        header = (header & 0xffff) | size << 16;
+    }
 
     int flags() const { return (header >> 8) & 0xff; }
 
@@ -168,25 +170,6 @@ struct Atom {
 
     void set_tag(int tag) { value = (value & ~TAG_MASK) | tag; }
 
-    void set_type(AtomType t) {
-        switch (t) {
-        case AtomType::Number:
-            set_tag(INTEGER);
-            break;
-        case AtomType::Boolean:
-            set_tag(BOOL);
-            break;
-        case AtomType::Nil:
-            set_tag(NIL);
-            break;
-        case AtomType::Symbol:
-            set_tag(SYMBOL);
-            break;
-        default:
-            ((HeapNode *)(value - offsetof(HeapNode, buff)))->set_type(t);
-        }
-    }
-
     AtomType get_type() const {
         switch (value & TAG_MASK) {
         case INTEGER:
@@ -198,7 +181,7 @@ struct Atom {
         case SYMBOL:
             return AtomType::Symbol;
         default:
-            return ((HeapNode *)(value - offsetof(HeapNode, buff)))->type();
+            return (reinterpret_cast<HeapNode *>(value - offsetof(HeapNode, buff)))->type();
         }
     }
 
@@ -206,7 +189,7 @@ struct Atom {
 
     Env* env() const {
         assert(get_type() == AtomType::Env);
-        return (Env*)value;
+        return reinterpret_cast<Env*>(value);
     }
 
     Cons *cons() const {
@@ -214,7 +197,7 @@ struct Atom {
             return nullptr;
         }
         assert(get_type() == AtomType::Cons);
-        return (Cons *)value;
+        return reinterpret_cast<Cons *>(value);
     }
 
     bool boolean() const {
@@ -223,7 +206,7 @@ struct Atom {
     }
     Lambda *lambda() const {
         assert(get_type() == AtomType::Lambda);
-        return (Lambda *)value;
+        return reinterpret_cast<Lambda *>(value);
     }
     Symbol symbol() const {
         assert(get_type() == AtomType::Symbol);
@@ -231,7 +214,7 @@ struct Atom {
     }
     String *string() const {
         assert(get_type() == AtomType::String);
-        return (String *)value;
+        return reinterpret_cast<String *>(value);
     }
 
     bool operator==(const Atom &other) const {
@@ -297,7 +280,7 @@ static_assert(sizeof(Atom) == 8);
 static_assert(std::is_pod<Atom>());
 
 struct Cons {
-    Atom car;
+    Atom  car;
     Cons *cdr;
 
     static Cons from(Atom car, Cons *cdr = nullptr) { return Cons{car, cdr}; }
@@ -426,10 +409,10 @@ class Env;
 struct Lambda {
     Cons *arguments;
     Cons *body;
-    Env *env;
+    Env  *env;
 
     std::string *native_name;
-    void *function_pointer;
+    void        *function_pointer;
 
     void visit();
 };

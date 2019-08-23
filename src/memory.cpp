@@ -1,7 +1,6 @@
 #include "memory.hpp"
 #include "env.hpp"
 #include <cstdlib>
-#include <string>
 
 namespace minou {
 
@@ -15,18 +14,19 @@ void Memory::free_all() {
 void mark_atom(Atom a) {
     switch (a.get_type()) {
     case AtomType::String:
-        visit((char *)a.value);
+        visit(reinterpret_cast<char *>(a.value));
         break;
     case AtomType::Cons:
         for (auto c : *a.cons()) {
-            if (!has_visited((char *)c)) {
-                visit((char *)c);
+            auto p = reinterpret_cast<char *>(c);
+            if (!has_visited(p)) {
+                visit(p);
                 mark_atom(c->car);
             }
         }
         break;
     case AtomType::Lambda:
-        if (!has_visited((char *)a.value))
+        if (!has_visited(reinterpret_cast<char *>(a.value)))
             a.lambda()->visit();
         break;
     default:
@@ -36,7 +36,7 @@ void mark_atom(Atom a) {
 
 void Lambda::visit()
 {
-    minou::visit(reinterpret_cast<const char *>(this));
+    minou::visit(reinterpret_cast<char *>(this));
     mark_atom(make_cons(arguments));
     mark_atom(make_cons(body));
 
@@ -45,30 +45,26 @@ void Lambda::visit()
 
 void Memory::free_node(HeapNode *h)
 {
-    fmt::print("free a thing\n");
     assert(is_heap_type(h->type()));
     switch (h->type()) {
     case AtomType::String: {
-        auto a = (String *)h->buff;
+        auto a = reinterpret_cast<String *>(h->buff);
         a->~String();
     } break;
     case AtomType::Lambda: {
-        auto a = (Lambda *)h->buff;
+        auto a = reinterpret_cast<Lambda *>(h->buff);
         delete a->native_name;
         a->native_name = nullptr;
-        fmt::print("free'd an env: {:x}\n", (uintptr_t)a->env);
-        // delete a->env;
-        a->env = nullptr;
         break;
     }
     case AtomType::Cons: {
         auto a = (Cons*)h->buff;
         a->~Cons();
-        consSlab.free((char *)h);
+        consSlab.free(reinterpret_cast<char *>(h));
         return;
     }
     case AtomType::Env: {
-        auto e = (Env*)h->buff;
+        auto e = reinterpret_cast<Env*>(h->buff);
         e->~Env();
         break;
     }break;

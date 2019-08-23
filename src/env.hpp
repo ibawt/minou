@@ -14,20 +14,15 @@ namespace minou {
 
 class Env {
   public:
-
     std::optional<Atom> lookup(const Symbol &key) {
         auto f = map.find(key.interned_value);
 
         if (f == map.end()) {
             if (parent) {
-                fmt::print("this[{:x}] looking to parent {:x} for key: {}\n", (uintptr_t)this, (uintptr_t)parent,
-                           key.string());
                 return parent->lookup(key);
             }
-            fmt::print("this[{:x}] found no key, and no parent\n", (uintptr_t)this);
             return {};
         }
-        fmt::print("[{:x}] found: {} = {}\n", (uintptr_t)this, key.string(), f->second);
         return f->second;
     }
 
