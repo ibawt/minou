@@ -334,7 +334,6 @@ class CompilerContext {
         for (auto s : syms) {
             for (auto &a : *l->arguments) {
                 if (a.symbol == s) {
-                    fmt::print("symbol {} is closed over!\n", s.string());
                     a.is_closed_over = true;
                     break;
                 }
@@ -412,7 +411,7 @@ class CompilerContext {
                     break;
                 }
             }
-            if(!found) 
+            if(!found)
                 syms.push_back(a.symbol());
         } break;
         default:
@@ -713,9 +712,9 @@ Result<Atom> NativeEngine::execute(Atom a) {
 
     mpm.run(*module.get());
 
-    for (auto &F : *module.get()) {
-        F.print(llvm::errs());
-    }
+    // for (auto &F : *module.get()) {
+    //     F.print(llvm::errs());
+    // }
 
     fpm->doFinalization();
 
