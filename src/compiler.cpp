@@ -267,14 +267,33 @@ class CompilerContext {
             break;
         default:
             if (a.get_type() == AtomType::Symbol) {
-                auto f = builder.GetInsertBlock()->getParent();
+                bool is_closure = true;
 
-                auto lookupFunc = module->getFunction("env_get");
-                if (!lookupFunc) {
-                    return "can't find env_get";
+                auto f = builder.GetInsertBlock()->getParent();
+                if( lambda ) {
+                    for( auto & arg : *lambda->arguments) {
+                        if( arg.symbol == a.symbol() )  {
+                            is_closure = arg.is_closed_over;
+                            break;
+                        }
+                    }
                 }
-                return builder.CreateCall(
-                    lookupFunc, {f->args().begin(), constant_atom(a)});
+
+                if( is_closure ) {
+                    auto lookupFunc = module->getFunction("env_get");
+                    if (!lookupFunc) {
+                        return "can't find env_get";
+                    }
+                    return builder.CreateCall(
+                        lookupFunc, {f->args().begin(), constant_atom(a)});
+                } else {
+                    for( auto& arg : f->args()) {
+                        if(arg.getName() == a.symbol().string()) {
+                            return &arg;
+                        }
+                    }
+                    return "can't find the function argument :(";
+                }
             }
             return constant_atom(a);
         }
@@ -299,28 +318,46 @@ class CompilerContext {
 
         cbuilder.SetInsertPoint(bb);
 
+        auto e = engine->get_memory().alloc_env(env);
+
+        auto l = engine->get_memory().alloc_lambda(a.cons()->cdr->car.cons(),
+                                                   a.cons()->cdr->cdr, e);
+        l->native_name = new std::string(name);
+
+        CompilerContext compiler(context, cbuilder, module, engine, e);
+        compiler.lambda = l;
+
+        Cons *body = engine->get_memory().alloc_cons(
+            make_symbol(Symbol::from("begin")), a.cons()->cdr->cdr);
+
+        auto syms = extract_symbols(make_cons(body), *l->arguments);
+        for (auto s : syms) {
+            for (auto &a : *l->arguments) {
+                if (a.symbol == s) {
+                    fmt::print("symbol {} is closed over!\n", s.string());
+                    a.is_closed_over = true;
+                    break;
+                }
+            }
+        }
         Cons *c = a.cons()->cdr->car.cons();
-        std::vector<llvm::Argument *> envArgs;
 
         auto it = f->args().begin();
         it->setName("env");
 
         auto envValue = it++;
 
+
         for (; it != f->args().end(); ++it) {
             it->setName(c->car.symbol().string());
-            cbuilder.CreateCall(module->getFunction("env_set"),
-                                {envValue, constant_atom(c->car), it});
-            envArgs.push_back(it);
+            for( auto& arg : *l->arguments ) {
+                if( arg.symbol == c->car.symbol() && arg.is_closed_over) {
+                    cbuilder.CreateCall(module->getFunction("env_set"),
+                                        {envValue, constant_atom(c->car), it});
+                }
+            }
             c = c->cdr;
         }
-
-        auto e = engine->get_memory().alloc_env(env);
-
-        CompilerContext compiler(context, cbuilder, module, engine, e);
-
-        Cons *body = engine->get_memory().alloc_cons(
-            make_symbol(Symbol::from("begin")), a.cons()->cdr->cdr);
 
         auto v = compiler.compile(make_cons(body));
         if (is_error(v))
@@ -331,10 +368,6 @@ class CompilerContext {
             return "error in lambda verify";
         }
 
-        auto l = engine->get_memory().alloc_lambda(a.cons()->cdr->car.cons(),
-                                                   a.cons()->cdr->cdr, e);
-        l->native_name = new std::string(name);
-
         for (auto [key, value] : compiler.get_lambdas()) {
             lambdas[key] = value;
         }
@@ -342,6 +375,50 @@ class CompilerContext {
         lambdas[name] = l;
 
         return constant_atom(make_lambda(l));
+    }
+
+    // TODO: optimize this >.>
+    std::vector<Symbol> extract_symbols(Atom a, std::vector<Argument>& args) {
+        std::vector<Symbol> syms;
+
+        switch (a.get_type()) {
+        case AtomType::Cons:
+            if( a.cons()->length() == 0) {
+                return syms;
+            }
+
+            if( a.cons()->car == make_symbol(Symbol::from("lambda"))) {
+                auto newArgs = make_arguments(a.cons()->cdr->car.cons());
+
+                auto e = extract_symbols(make_cons(a.cons()->cdr->cdr), *newArgs);
+                for (auto x : e) {
+                    syms.push_back(x);
+                }
+                delete newArgs;
+            } else {
+                for (auto c : *a.cons()) {
+                    auto e = extract_symbols(c->car, args);
+                    for (auto x : e) {
+                        syms.push_back(x);
+                    }
+                }
+            }
+            break;
+        case AtomType::Symbol: {
+            bool found = false;
+            for( auto& arg : args ) {
+                if( arg.symbol ==  a.symbol()) {
+                    found = true;
+                    break;
+                }
+            }
+            if(!found) 
+                syms.push_back(a.symbol());
+        } break;
+        default:
+            break;
+        }
+        return syms;
     }
 
     Result<llvm::Value *> compile_application(Atom a) {
@@ -392,50 +469,8 @@ class CompilerContext {
 
     std::map<std::string, Lambda *> &get_lambdas() { return lambdas; }
 
-    // bool is_in_lambda(const std::string& s) {
-    //     if(!current_lambda)
-    //         return false;
-
-    //     for( auto c : *current_lambda->arguments) {
-    //         if( c->car.symbol().string() == s) {
-    //             return true;
-    //         }
-    //     }
-    //     return false;
-    // }
-
-    // bool is_symbol_in_tree(const std::string& s) {
-    //     if( is_in_lambda(s)) {
-    //         return true;
-    //     }
-
-    //     if(parent) {
-    //         if( parent->is_symbol_in_tree(s)) {
-    //             return true;
-    //         }
-    //     }
-    //     return false;
-    // }
-
-    std::vector<std::string> get_free_variables(Atom a) {
-        std::vector<std::string> vars;
-
-        switch( a.get_type()) {
-        case AtomType::Cons: {
-            if( a.cons()->car.get_type() == AtomType::Symbol) {
-                auto sym = a.cons()->car.symbol();
-                if(sym == "lambda") {
-                }
-            }
-        } break;
-        default:
-            break;
-        }
-        return vars;
-    }
-
-
   private:
+    Lambda *lambda = nullptr;
     CompilerContext *parent;
     Env *env;
     Engine *engine;
@@ -678,9 +713,9 @@ Result<Atom> NativeEngine::execute(Atom a) {
 
     mpm.run(*module.get());
 
-    // for (auto &F : *module.get()) {
-    //     F.print(llvm::errs());
-    // }
+    for (auto &F : *module.get()) {
+        F.print(llvm::errs());
+    }
 
     fpm->doFinalization();
 

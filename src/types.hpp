@@ -9,6 +9,7 @@
 #include "fmt/format.h"
 #include "symbol_intern.hpp"
 #include <cstring>
+#include <vector>
 
 namespace minou {
 
@@ -419,6 +420,7 @@ inline std::vector<Argument>* make_arguments(Cons *args) {
     for( auto i : *args) {
         out->push_back(Argument{ .symbol = i->car.symbol(), .is_closed_over = false } );
     }
+    out->shrink_to_fit();
     return out;
 }
 
