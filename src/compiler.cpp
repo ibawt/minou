@@ -172,13 +172,15 @@ class CompilerContext {
                         return y;
 
                     auto f = getFunction("atom_to_integer");
+
                     if (!f) {
                         return "can't find atom_to_integer";
                     }
 
                     auto xx = builder.CreateCall(f, get_value(x));
+                    xx->setCallingConv(llvm::CallingConv::Fast);
                     auto yy = builder.CreateCall(f, get_value(y));
-
+                    yy->setCallingConv(llvm::CallingConv::Fast);
                     auto v = builder.CreateAdd(xx, yy);
                     auto vv = builder.CreateShl(
                         v, llvm::ConstantInt::get(context, llvm::APInt(64, 3)));
@@ -195,7 +197,9 @@ class CompilerContext {
                         }
 
                         auto f = getFunction("atom_to_integer");
+
                         auto xx = builder.CreateCall(f, get_value(x));
+                        xx->setCallingConv(llvm::CallingConv::Fast);
                         auto v = builder.CreateNeg(xx);
                         auto vv = builder.CreateShl(
                             v, llvm::ConstantInt::get(context,
@@ -216,10 +220,13 @@ class CompilerContext {
                         if (!f) {
                             return "can't find atom_to_integer";
                         }
+                        f->setCallingConv(llvm::CallingConv::Fast);
 
                         auto xx = builder.CreateCall(f, get_value(x));
+                        xx->setCallingConv(llvm::CallingConv::Fast);
                         auto yy = builder.CreateCall(f, get_value(y));
-
+                        yy->setCallingConv(llvm::CallingConv::Fast)
+                        ;
                         auto v = builder.CreateSub(xx, yy);
                         auto vv = builder.CreateShl(
                             v, llvm::ConstantInt::get(context,
@@ -281,6 +288,7 @@ class CompilerContext {
 
                 if( is_closure ) {
                     auto lookupFunc = module->getFunction("env_get");
+                    lookupFunc->setOnlyReadsMemory();
                     if (!lookupFunc) {
                         return "can't find env_get";
                     }
@@ -345,7 +353,6 @@ class CompilerContext {
         it->setName("env");
 
         auto envValue = it++;
-
 
         for (; it != f->args().end(); ++it) {
             it->setName(c->car.symbol().string());
@@ -430,9 +437,11 @@ class CompilerContext {
 
         auto f = module->getFunction("lambda_get_function_pointer");
         auto fp = builder.CreateCall(f, get_value(l));
+        fp->setCallingConv(llvm::CallingConv::Fast);
 
         auto ep = module->getFunction("lambda_get_env_pointer");
         auto fenv = builder.CreateCall(ep, get_value(l));
+        fenv->setCallingConv(llvm::CallingConv::Fast);
 
         args.push_back(fenv);
         funcArgs.push_back(atom_type());
@@ -485,9 +494,10 @@ static llvm::Function *get_function_pointer(llvm::Module *m) {
         llvm::FunctionType::get(llvm::Type::getInt64Ty(m->getContext()),
                                 llvm::Type::getInt64Ty(m->getContext()), false);
 
-    auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage,
+    auto f = llvm::Function::Create(ft, llvm::Function::PrivateLinkage,
                                     "lambda_get_function_pointer", m);
 
+    f->setCallingConv(llvm::CallingConv::Fast);
     llvm::IRBuilder<> builder(m->getContext());
     auto bb = llvm::BasicBlock::Create(m->getContext(), "entry", f);
     builder.SetInsertPoint(bb);
@@ -513,10 +523,10 @@ static llvm::Function *lambda_get_env_pointer(llvm::Module *m) {
         llvm::FunctionType::get(llvm::Type::getInt64Ty(m->getContext()),
                                 llvm::Type::getInt64Ty(m->getContext()), false);
 
-    auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage,
+    auto f = llvm::Function::Create(ft, llvm::Function::PrivateLinkage,
                                     "lambda_get_env_pointer", m);
 
-    // f->setCallingConv(llvm::CallingConv::Fast);
+    f->setCallingConv(llvm::CallingConv::Fast);
     llvm::IRBuilder<> builder(m->getContext());
     auto bb = llvm::BasicBlock::Create(m->getContext(), "entry", f);
     builder.SetInsertPoint(bb);
@@ -545,6 +555,7 @@ static llvm::Function *env_get(llvm::Module *m) {
 
     auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage,
                                     "env_get", m);
+    f->setOnlyReadsMemory();
 
     return f;
 }
@@ -641,7 +652,7 @@ static llvm::Function *atom_to_integer(llvm::Module *module) {
                                     "atom_to_integer", module);
     auto bb = llvm::BasicBlock::Create(context, "entry", f);
 
-    // f->setCallingConv(llvm::CallingConv::Fast);
+    f->setCallingConv(llvm::CallingConv::Fast);
 
     llvm::IRBuilder<> builder(context);
     builder.SetInsertPoint(bb);
@@ -661,7 +672,7 @@ Result<Atom> NativeEngine::execute(Atom a) {
     llvm::legacy::PassManager mpm;
     llvm::PassManagerBuilder pmBuilder;
     pmBuilder.Inliner = llvm::createFunctionInliningPass();
-    pmBuilder.OptLevel = 2;
+    pmBuilder.OptLevel = 3;
     pmBuilder.populateModulePassManager(mpm);
 
     auto fpm =
@@ -712,9 +723,15 @@ Result<Atom> NativeEngine::execute(Atom a) {
 
     mpm.run(*module.get());
 
-    // for (auto &F : *module.get()) {
-    //     F.print(llvm::errs());
-    // }
+    llvm::legacy::PassManager pm;
+    jit->getTargetMachine().Options.MCOptions.AsmVerbose = true;
+
+    auto out_file = llvm::raw_fd_ostream(0, false);
+    if(jit->getTargetMachine().addPassesToEmitFile(pm, out_file, &out_file, llvm::TargetMachine::CGFT_AssemblyFile) ) {
+        llvm::errs().flush();
+    } else {
+        pm.run(*module.get());
+    }
 
     fpm->doFinalization();
 

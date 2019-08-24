@@ -62,6 +62,7 @@ public:
                     }),
         CompileLayer(ObjectLayer, SimpleCompiler(*TM)) {
     llvm::sys::DynamicLibrary::LoadLibraryPermanently(nullptr);
+
   }
 
   TargetMachine &getTargetMachine() { return *TM; }
