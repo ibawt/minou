@@ -269,6 +269,10 @@ inline Atom make_symbol(const Symbol s) {
                 (static_cast<uintptr_t>(s.interned_value) << TAG_BITS)};
 }
 
+inline Atom symbol(const std::string& s) {
+    return make_symbol(Symbol::from(s));
+}
+
 inline Atom make_lambda(const Lambda *l) {
     return Atom{reinterpret_cast<uintptr_t>(l)};
 }

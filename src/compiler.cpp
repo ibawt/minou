@@ -117,7 +117,77 @@ class CompilerContext {
 
                 if (sym == "if") {
                     return compile_if(a);
-                } else if (sym == "=") {
+                }
+                else if( sym == "do") {
+                    auto vars = a.cons()->cdr->car;
+                    auto test = a.cons()->cdr->cdr->car;
+                    auto rest = a.cons()->cdr->cdr->cdr;
+
+                    std::vector<Atom> updates;
+                    std::vector<Atom> args;
+                    for( auto c : *vars.cons()) {
+                        auto v = c->car.cons()->car;
+                        args.push_back(v);
+
+                        auto u = c->car.cons()->cdr->car;
+                        args.push_back(u);
+                    }
+
+                    auto& mem = engine->get_memory();
+
+                    fmt::print("vars: {}\n", vars);
+                    fmt::print("test: {}\n", test);
+                    fmt::print("rest: {}\n", make_cons(rest));
+
+                    auto f = builder.GetInsertBlock()->getParent();
+                    auto preheader_bb = builder.GetInsertBlock();
+                    auto loop_bb = llvm::BasicBlock::Create(context, "loop", f);
+
+                    std::vector<llvm::Value*> avars;
+                    for( Cons *c : *vars.cons()) {
+                        auto v = compile(c->car.cons()->cdr->car);
+                        if (is_error(v))
+                            return v;
+                        named_values[c->car.cons()->car.symbol().string()] =
+                            get_value(v);
+                        avars.push_back(get_value(v));
+                    }
+
+                    builder.CreateBr(loop_bb);
+                    builder.SetInsertPoint(loop_bb);
+                    auto v = builder.CreatePHI(llvm::Type::getInt64Ty(context), 2);
+                    v->addIncoming(*avars.begin(), preheader_bb);
+
+                    auto e = compile(make_cons(rest));
+                    if( is_error(e)) return e;
+
+                    auto fst = vars.cons()->car.cons()->cdr->cdr;
+                    fmt::print("fst: {}\n", make_cons(fst));
+
+                    auto step = compile(make_cons(fst));
+                    if( is_error(step)) {
+                        return step;
+                    }
+
+                    auto testv = compile(test);
+                    if(is_error(testv)) {
+                        return testv;
+                    }
+
+                    auto endCond = builder.CreateICmpEQ(get_value(testv), constant_atom(make_boolean(false)));
+
+                    auto loopendbb = builder.GetInsertBlock();
+                    auto afterbb = llvm::BasicBlock::Create(context, "afterloop", f);
+
+                    builder.CreateCondBr(endCond, loop_bb, afterbb);
+
+                    builder.SetInsertPoint(afterbb);
+
+                    v->addIncoming(get_value(step), loopendbb);
+
+                    return step;
+                }
+                else if (sym == "=") {
                     auto x = compile(a.cons()->cdr->car);
                     auto y = compile(a.cons()->cdr->cdr->car);
                     if (is_error(x)) {
@@ -295,6 +365,11 @@ class CompilerContext {
                     return builder.CreateCall(
                         lookupFunc, {f->args().begin(), constant_atom(a)});
                 } else {
+                    for( auto& [k,v] : named_values) {
+                        if( k == a.symbol().string() ) {
+                            return v;
+                        }
+                    }
                     for( auto& arg : f->args()) {
                         if(arg.getName() == a.symbol().string()) {
                             return &arg;
@@ -722,6 +797,10 @@ Result<Atom> NativeEngine::execute(Atom a) {
     }
 
     mpm.run(*module.get());
+
+    for( auto& F : *module) {
+        F.print(llvm::errs());
+    }
 
     llvm::legacy::PassManager pm;
     jit->getTargetMachine().Options.MCOptions.AsmVerbose = true;
