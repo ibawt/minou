@@ -435,6 +435,7 @@ struct Lambda {
     std::vector<Argument> *arguments;
     std::string           *native_name;
     void                  *function_pointer;
+    bool                   is_macro;
 
     void visit();
 };

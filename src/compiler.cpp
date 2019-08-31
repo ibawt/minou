@@ -49,9 +49,9 @@ static int lambdaCounter = 0;
 class CompilerContext {
   public:
     CompilerContext(llvm::LLVMContext &ctx, llvm::IRBuilder<> &builder,
-                    llvm::Module *module, Engine *engine, Env *env)
+                    llvm::Module *module, Engine *engine, Env *env, NativeEngine *ne)
         : builder(builder), context(ctx), module(module), engine(engine),
-          env(env) {}
+          env(env), native_engine(ne) {}
 
     llvm::Function *getFunction(const std::string &name) {
         return module->getFunction(name);
@@ -117,8 +117,17 @@ class CompilerContext {
 
                 if (sym == "if") {
                     return compile_if(a);
-                }
-                else if( sym == "do") {
+                } else if (sym == "macro") {
+                    return compile_macro(a);
+                } else if (sym == "define-macro") {
+                    auto macro_func = engine->get_memory().alloc_cons(symbol("macro"), a.cons()->cdr->cdr);
+                    auto func = native_engine->execute(make_cons(macro_func));
+                    if( is_error(func)) return get_error(func);
+
+                    env->set(a.cons()->cdr->car.symbol(), get_value(func));
+
+                    return constant_atom(a.cons()->cdr->car);
+                } else if (sym == "do") {
                     auto vars = a.cons()->cdr->car;
                     auto test = a.cons()->cdr->cdr->car;
                     auto rest = a.cons()->cdr->cdr->cdr;
@@ -186,8 +195,7 @@ class CompilerContext {
                     v->addIncoming(get_value(step), loopendbb);
 
                     return step;
-                }
-                else if (sym == "=") {
+                } else if (sym == "=") {
                     auto x = compile(a.cons()->cdr->car);
                     auto y = compile(a.cons()->cdr->cdr->car);
                     if (is_error(x)) {
@@ -383,6 +391,73 @@ class CompilerContext {
         return "shouldn't get here";
     }
 
+    Result<llvm::Value*> compile_macro(Atom a) {
+        auto name = fmt::format("lambda_{}", lambdaCounter++);
+        std::vector<llvm::Type *> args(a.cons()->cdr->car.cons()->length(),
+                                       llvm::Type::getInt64Ty(context));
+        args.push_back(atom_type());
+
+        auto ft = llvm::FunctionType::get(llvm::Type::getInt64Ty(context), args,
+                                          false);
+        auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage,
+                                        name, module);
+
+        f->setCallingConv(llvm::CallingConv::Fast);
+
+        auto bb = llvm::BasicBlock::Create(context, "entry", f);
+        llvm::IRBuilder<> cbuilder(context);
+
+        cbuilder.SetInsertPoint(bb);
+
+        auto e = engine->get_memory().alloc_env(env);
+
+        auto l = engine->get_memory().alloc_lambda(a.cons()->cdr->car.cons(),
+                                                   a.cons()->cdr->cdr, e);
+        l->native_name = new std::string(name);
+        l->is_macro = true;
+
+        CompilerContext compiler(context, cbuilder, module, engine, e, native_engine);
+        compiler.lambda = l;
+
+        Cons *body = engine->get_memory().alloc_cons(
+            make_symbol(Symbol::from("begin")), a.cons()->cdr->cdr);
+
+        Cons *c = a.cons()->cdr->car.cons();
+
+        auto it = f->args().begin();
+        it->setName("env");
+
+        auto envValue = it++;
+
+        for (; it != f->args().end(); ++it) {
+            it->setName(c->car.symbol().string());
+            // for( auto& arg : *l->arguments ) {
+            //     if( arg.symbol == c->car.symbol() && arg.is_closed_over) {
+            //         cbuilder.CreateCall(module->getFunction("env_set"),
+            //                             {envValue, constant_atom(c->car), it});
+            //     }
+            // }
+            c = c->cdr;
+        }
+
+        auto v = compiler.compile(make_cons(body));
+        if (is_error(v))
+            return v;
+        cbuilder.CreateRet(get_value(v));
+
+        if (llvm::verifyFunction(*f, &llvm::errs())) {
+            return "error in lambda verify";
+        }
+
+        for (auto [key, value] : compiler.get_lambdas()) {
+            lambdas[key] = value;
+        }
+
+        lambdas[name] = l;
+
+        return constant_atom(make_lambda(l));
+    }
+
     Result<llvm::Value *> compile_lambda(Atom a) {
         auto name = fmt::format("lambda_{}", lambdaCounter++);
         std::vector<llvm::Type *> args(a.cons()->cdr->car.cons()->length(),
@@ -407,7 +482,7 @@ class CompilerContext {
                                                    a.cons()->cdr->cdr, e);
         l->native_name = new std::string(name);
 
-        CompilerContext compiler(context, cbuilder, module, engine, e);
+        CompilerContext compiler(context, cbuilder, module, engine, e, native_engine);
         compiler.lambda = l;
 
         Cons *body = engine->get_memory().alloc_cons(
@@ -506,6 +581,41 @@ class CompilerContext {
         std::vector<llvm::Value *> args;
         std::vector<llvm::Type *> funcArgs;
 
+        if( a.get_type() == AtomType::Symbol ) {
+            auto x = env->lookup(a.symbol());
+            if( x.has_value() ) {
+                auto xx = x.value();
+
+                if( xx.get_type() == AtomType::Lambda ) {
+                    auto l = xx.lambda();
+
+                    if( l->is_macro ) {
+                        switch(l->arguments->size() ) {
+                        case 0: {
+                            Atom (*FP)(Env *) = (Atom(*)(Env*))(intptr_t)l->function_pointer;
+                            auto a = FP(env);
+                            return compile(a);
+                        } break;
+                        case 1: {
+                            Atom (*FP)(Env *, Atom x) =
+                                (Atom(*)(Env *, Atom))(intptr_t)l->function_pointer;
+                            Atom m = FP(env, a.cons()->cdr->car);
+                            return compile(m);
+                        } break;
+                        case 2: {
+                            Atom (*FP)(Env *, Atom x, Atom y) = (Atom(*)(
+                                                                     Env *, Atom, Atom))(intptr_t)l->function_pointer;
+                            Atom m = FP(env, a.cons()->cdr->car, a.cons()->cdr->cdr->car);
+                            return compile(m);
+                        } break;
+                        default:
+                            return "I'm terrible and didn't do this past 3 arguments";
+                        }
+                    }
+                }
+            }
+        }
+
         auto l = compile(a.cons()->car);
         if (is_error(l))
             return l;
@@ -562,6 +672,7 @@ class CompilerContext {
     llvm::Module *module;
     std::map<std::string, Lambda *> lambdas;
     std::map<std::string, llvm::Value *> named_values;
+    NativeEngine *native_engine;
 };
 
 static llvm::Function *get_function_pointer(llvm::Module *m) {
@@ -783,7 +894,7 @@ Result<Atom> NativeEngine::execute(Atom a) {
     llvm::IRBuilder<> builder(context);
     builder.SetInsertPoint(bb);
 
-    CompilerContext compiler(context, builder, module.get(), engine, env);
+    CompilerContext compiler(context, builder, module.get(), engine, env, this);
     auto v = compiler.compile(a);
     if (is_error(v)) {
         return get_error(v);
