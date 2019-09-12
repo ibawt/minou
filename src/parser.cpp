@@ -160,7 +160,7 @@ struct Parser {
                     return result;
                 }
                 return quote_atom(get_parse_atom(result));
-            }
+            } break;
             case '(':
                 buff.next();
                 return parse_list();
@@ -168,6 +168,32 @@ struct Parser {
                 buff.next();
                 buff.read_to_new_line();
                 break;
+            case ',': {
+                buff.next();
+                if( buff.peek() == '@') {
+                    buff.next();
+                    auto a = parse_atom();
+                    if(is_error(a))
+                        return a;
+                    return make_cons(memory.make_list( { symbol("splice"), get_value(a)}));
+                } else {
+                    auto a = parse_atom();
+                    if(is_error(a))
+                        return a;
+                    return make_cons(memory.make_list( { symbol("unquote"), get_value(a)}));
+                }
+            } break;
+            case '`': {
+                buff.next();
+                auto a = parse_atom();
+                if(is_error(a))
+                    return a;
+                // auto list =  make_cons(memory.make_list( { symbol("quasiquote"), get_value(a)}));
+                std::vector<Atom> list;
+                list.push_back(symbol("list"));
+
+                // return list;
+            } break;
             default:
                 if (isspace(c)) {
                     buff.next();
