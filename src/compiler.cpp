@@ -24,9 +24,11 @@
 #include <llvm/IRReader/IRReader.h>
 #include <string>
 #include <vector>
+#include <cstdarg>
 #include <map>
 
 namespace minou {
+
 
 #define API __attribute__((visibility("default")))
 extern "C" {
@@ -41,6 +43,23 @@ API int64_t env_get(Env *env, Atom sym) {
         return x.value().value;
     }
     return make_nil().value;
+}
+
+    API int64_t make_list(Engine *e, int64_t count, ...)
+{
+    va_list args;
+    va_start(args, count);
+
+    std::vector<Atom> list;
+
+    for(int i = 0 ; i < count; ++i) {
+        Atom a = va_arg(args, Atom);
+        fmt::print("popped a {}\n", a);
+        list.push_back(a);
+    }
+    va_end(args);
+
+    return make_cons(e->get_memory().make_list(list)).value;
 }
 }
 
@@ -117,7 +136,27 @@ class CompilerContext {
 
                 if (sym == "if") {
                     return compile_if(a);
-                } else if (sym == "macro") {
+                }
+                else if(sym == "list") {
+                    auto f = this->getFunction("make_list");
+
+                    std::vector<llvm::Value*> args;
+                    args.push_back(llvm::ConstantInt::get(context, llvm::APInt(64, (uintptr_t)engine)));
+
+                    args.push_back(llvm::ConstantInt::get(context, llvm::APInt(64, a.cons()->cdr->length())));
+
+                    for( auto c : *a.cons()->cdr) {
+                        auto aa = compile(c->car);
+                        if( is_error(aa)) return aa;
+                        args.push_back(get_value(aa));
+                    }
+                    args.push_back(constant_atom(make_nil()));
+
+                    auto x = builder.CreateCall(f, args);
+
+                    return x;
+                }
+                else if (sym == "macro") {
                     return compile_macro(a);
                 } else if (sym == "define-macro") {
                     auto macro_func = engine->get_memory().alloc_cons(symbol("macro"), a.cons()->cdr->cdr);
@@ -128,6 +167,9 @@ class CompilerContext {
 
                     return constant_atom(a.cons()->cdr->car);
                 } else if (sym == "do") {
+                    // FIXME: none of this works and I believe tail calls
+                    // should be used for looping but the experiment lives on,
+                    // shine on you crazy diamond
                     auto vars = a.cons()->cdr->car;
                     auto test = a.cons()->cdr->cdr->car;
                     auto rest = a.cons()->cdr->cdr->cdr;
@@ -732,6 +774,14 @@ static llvm::Function *lambda_get_env_pointer(llvm::Module *m) {
     return f;
 }
 
+static llvm::Function *make_list_func(llvm::Module *m) {
+    auto &context = m->getContext();
+    auto ft = llvm::FunctionType::get(llvm::Type::getInt64Ty(context),
+                                      {llvm::Type::getInt64Ty(context) }, true);
+    auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "make_list", m);
+    return f;
+}
+
 static llvm::Function *env_get(llvm::Module *m) {
     auto &context = m->getContext();
     auto ft = llvm::FunctionType::get(
@@ -878,6 +928,7 @@ Result<Atom> NativeEngine::execute(Atom a) {
     builtins.push_back(env_set(module.get()));
     builtins.push_back(env_get(module.get()));
     builtins.push_back(lambda_get_env_pointer(module.get()));
+    builtins.push_back(make_list_func(module.get()));
 
     for (auto f : builtins) {
         if (llvm::verifyFunction(*f, &llvm::errs())) {

@@ -189,6 +189,16 @@ TEST_F(EvalTest, If) {
          {"(if 5 1 0)", make_integer(1L)}});
 }
 
+TEST_F(EvalTest, Quasi) {
+    run({{"`a", symbol("a")}});
+
+    auto a = engine->eval("`(1 2)");
+    auto e = engine->eval("'(1 2)");
+
+    ASSERT_TRUE(equalsp(get_value(a), get_value(e)));
+}
+
+
 // TEST_F(EvalTest, CallCC) {
 //     run({
 //         {"(call/cc (lambda (k) (k 1)))", Atom(1L)},

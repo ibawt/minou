@@ -188,11 +188,12 @@ struct Parser {
                 auto a = parse_atom();
                 if(is_error(a))
                     return a;
-                // auto list =  make_cons(memory.make_list( { symbol("quasiquote"), get_value(a)}));
-                std::vector<Atom> list;
-                list.push_back(symbol("list"));
 
-                // return list;
+                auto aa = get_value(a);
+
+                auto ee = expand_quasiquote(aa);
+                fmt::print("ee is: {}\n", get_value(ee));
+                return ee;
             } break;
             default:
                 if (isspace(c)) {
@@ -203,6 +204,53 @@ struct Parser {
             }
         }
         throw std::runtime_error("invalid parse");
+    }
+
+    Result<Atom> expand_quasiquote(Atom a) {
+        fmt::print("expand_quasiquote: {}\n", a);
+        if(a.is_list()) {
+            std::vector<Atom> list;
+            list.push_back(symbol("list"));
+            for (auto c : *a.cons()) {
+                if (c->car.is_pair()) {
+
+                    auto sublist = c->car.cons();
+                    auto s = sublist->car;
+
+                    if (s.get_type() == AtomType::Symbol) {
+                        auto sym = s.symbol();
+
+                        if (sym == "unquote") {
+                            list.push_back(sublist->cdr->car);
+                        } else if (sym == "splice") {
+                            auto aa = expand_quasiquote(sublist->cdr->car);
+                            if( is_error(aa)) {
+                                return aa;
+                            }
+                            auto aaa = get_value(aa);
+                            if( aaa.get_type() == AtomType::Cons) {
+                                for( auto cc : *aaa.cons()) {
+                                    list.push_back(cc->car);
+                                }
+                            } else {
+                                list.push_back(aaa);
+                            }
+                        } else {
+                            return make_cons(memory.make_list(
+                                {symbol("quote"), sublist->cdr->car}));
+                        }
+                    } else {
+                        list.push_back(make_cons(
+                            memory.make_list({symbol("quote"), c->car})));
+                    }
+                } else {
+                    list.push_back(make_cons(memory.make_list({symbol("quote"), c->car}))) ;
+                }
+            }
+            return make_cons(memory.make_list(list));
+        } else {
+            return make_cons(memory.make_list({symbol("quote"), a}));
+        }
     }
 
     Result<Atom> read_atom() {
