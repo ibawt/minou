@@ -119,7 +119,7 @@ class Memory {
     }
 
     Cons* alloc_cons(Atom a, Cons* next) {
-        auto block = consSlab.get();
+        auto block = alloc<Cons>();
         int len = sizeof(HeapNode) + sizeof(Cons);
         memset(block, 0, len);
         auto hn = reinterpret_cast<HeapNode*>(block);
@@ -152,7 +152,7 @@ class Memory {
         return hn;
     }
     void free_node(HeapNode *);
-    Slab consSlab = Slab(sizeof(HeapNode) + sizeof(Cons), 1024 * 1024);
+    // Slab consSlab = Slab(sizeof(HeapNode) + sizeof(Cons), 1024 * 1024);
 
     void free_all();
 

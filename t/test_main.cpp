@@ -191,8 +191,8 @@ TEST_F(EvalTest, If) {
 
 TEST_F(EvalTest, Quasi) {
     // run({{"`a", symbol("a")}});
-
     auto a = get_value(engine->eval("`(1 2)"));
+    fmt::print("a.value == {}\n", a.value);
     lock_object((char*)a.cons());
     auto e = get_value(engine->eval("'(1 2)"));
     fmt::print("e = {}\n", e.value);
