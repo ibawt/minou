@@ -190,12 +190,16 @@ TEST_F(EvalTest, If) {
 }
 
 TEST_F(EvalTest, Quasi) {
-    run({{"`a", symbol("a")}});
+    // run({{"`a", symbol("a")}});
 
-    auto a = engine->eval("`(1 2)");
-    auto e = engine->eval("'(1 2)");
+    auto a = get_value(engine->eval("`(1 2)"));
+    lock_object((char*)a.cons());
+    auto e = get_value(engine->eval("'(1 2)"));
+    fmt::print("e = {}\n", e.value);
 
-    ASSERT_TRUE(equalsp(get_value(a), get_value(e)));
+    fmt::print("a = {}, e = {}\n", a, e);
+
+    ASSERT_TRUE(equalsp(a, e));
 }
 
 

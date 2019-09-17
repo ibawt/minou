@@ -192,7 +192,6 @@ struct Parser {
                 auto aa = get_value(a);
 
                 auto ee = expand_quasiquote(aa);
-                fmt::print("ee is: {}\n", get_value(ee));
                 return ee;
             } break;
             default:
@@ -207,7 +206,6 @@ struct Parser {
     }
 
     Result<Atom> expand_quasiquote(Atom a) {
-        fmt::print("expand_quasiquote: {}\n", a);
         if(a.is_list()) {
             std::vector<Atom> list;
             list.push_back(symbol("list"));
