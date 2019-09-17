@@ -62,7 +62,7 @@ void Memory::free_node(HeapNode *h)
         a->~Cons();
         // consSlab.free(reinterpret_cast<char *>(h));
         // return;
-    }
+    } break;
     case AtomType::Env: {
         auto e = reinterpret_cast<Env*>(h->buff);
         e->~Env();

@@ -120,10 +120,10 @@ class Memory {
 
     Cons* alloc_cons(Atom a, Cons* next) {
         auto block = alloc<Cons>();
-        int len = sizeof(HeapNode) + sizeof(Cons);
-        memset(block, 0, len);
+        // int len = sizeof(HeapNode) + sizeof(Cons);
+        // memset(block, 0, len);
         auto hn = reinterpret_cast<HeapNode*>(block);
-        hn->set_size(len);
+        // hn->set_size(len);
 
         Cons *c = reinterpret_cast<Cons*>(hn->buff);
         c->car = a;
