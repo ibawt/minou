@@ -47,6 +47,8 @@ API int64_t env_get(Env *env, Atom sym) {
 
 API int64_t make_list(Engine *e, int64_t count, ...)
 {
+    //TODO: if we compile this in reverse order we can avoid
+    // the temporary list
     va_list args;
     va_start(args, count);
 
@@ -54,13 +56,59 @@ API int64_t make_list(Engine *e, int64_t count, ...)
 
     for(int i = 0 ; i < count; ++i) {
         Atom a = va_arg(args, Atom);
-        fmt::print("popped a {}\n", a);
         list.push_back(a);
     }
     va_end(args);
 
     return make_cons(e->get_memory().make_list(list)).value;
 }
+
+API int64_t equalsp_ex(int count, ...) {
+    va_list args;
+    va_start(args, count);
+
+    if(count <= 0 ) {
+        return make_boolean(false).value;
+    }
+
+    auto a = va_arg(args, Atom);
+
+    for( int i = 1 ; i < count ; ++i) {
+        auto b = va_arg(args, Atom);
+        if(!equalsp(a, b)) {
+            return make_boolean(false).value;
+        }
+    }
+    return make_boolean(true).value;
+}
+
+API int64_t builtin_cons(Engine *e, Atom value,  Atom list)
+{
+    return make_cons(e->get_memory().alloc_cons(value, list.cons())).value;
+}
+
+API int64_t builtin_append(int count, ...)
+{
+    va_list args;
+    va_start(args, count);
+
+    assert(count > 1);
+
+    Cons *initial = va_arg(args, Cons*);
+    Cons *tail = initial->tail();
+    fmt::print("{}'s tail is {}\n", *initial, *tail);
+    for( int i = 1 ; i < count ; ++i) {
+        auto c = va_arg(args,  Cons*);
+        assert(make_cons(c).get_type() == AtomType::Cons);
+        assert(tail);
+        tail->cdr = c;
+        tail = c->tail();
+        fmt::print("{}'s tail is {}\n", *c, *tail);
+    }
+
+    return (int64_t)initial;
+}
+
 }
 
 static int lambdaCounter = 0;
@@ -137,6 +185,19 @@ class CompilerContext {
                 if (sym == "if") {
                     return compile_if(a);
                 }
+                else if(sym == "append") {
+                    auto f = getFunction("builtin_append");
+
+                    std::vector<llvm::Value*> args;
+
+                    args.push_back(llvm::ConstantInt::get(context, llvm::APInt(64, a.cons()->cdr->length())));
+                    for( auto c : *a.cons()->cdr) {
+                        auto a0 = compile(c->car);
+                        if(is_error(a0)) return a0;
+                        args.push_back(get_value(a0));
+                    }
+                    return builder.CreateCall(f, args);
+                }
                 else if(sym == "list") {
                     auto f = this->getFunction("make_list");
 
@@ -152,6 +213,38 @@ class CompilerContext {
                     auto x = builder.CreateCall(f, args);
 
                     return x;
+                }
+                else if(sym == "cons") {
+                    auto f = getFunction("builtin_cons");
+                    std::vector<llvm::Value*> args;
+                    args.push_back(llvm::ConstantInt::get(context, llvm::APInt(64, (uintptr_t)engine)));
+
+                    if( a.cons()->cdr->length() != 2 ) {
+                        return "mismatched arity for cons";
+                    }
+
+                    auto a0 = compile(a.cons()->cdr->car);
+                    if( is_error(a0)) return a0;
+                    auto a1 = compile(a.cons()->cdr->cdr->car);
+                    if( is_error(a1)) return a1;
+
+                    args.push_back(get_value(a0));
+                    args.push_back(get_value(a1));
+
+                    return builder.CreateCall(f, args);
+                }
+                else if(sym == "equals") {
+                    auto f = getFunction("equalsp_ex");
+                    std::vector<llvm::Value*> args;
+
+                    args.push_back(llvm::ConstantInt::get(context, llvm::APInt(64, a.cons()->cdr->length())));
+
+                    for( auto c : *a.cons()->cdr) {
+                        auto aa = compile(c->car);
+                        if(is_error(aa)) return aa;
+                        args.push_back(get_value(aa));
+                    }
+                    return builder.CreateCall(f, args);
                 }
                 else if (sym == "macro") {
                     return compile_macro(a);
@@ -742,6 +835,17 @@ static llvm::Function *get_function_pointer(llvm::Module *m) {
     return f;
 }
 
+    static llvm::Function  *llvm_equalsp(llvm::Module*m) {
+        auto ft =
+            llvm::FunctionType::get(llvm::Type::getInt64Ty(m->getContext()),
+                                    llvm::Type::getInt64Ty(m->getContext()), true);
+
+        auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage,
+                                        "equalsp_ex", m);
+
+        return f;
+    }
+
 static llvm::Function *lambda_get_env_pointer(llvm::Module *m) {
     auto ft =
         llvm::FunctionType::get(llvm::Type::getInt64Ty(m->getContext()),
@@ -775,6 +879,22 @@ static llvm::Function *make_list_func(llvm::Module *m) {
     auto ft = llvm::FunctionType::get(llvm::Type::getInt64Ty(context),
                                       {llvm::Type::getInt64Ty(context), llvm::Type::getInt64Ty(context) }, true);
     auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "make_list", m);
+    return f;
+}
+
+static llvm::Function *make_append_func(llvm::Module *m) {
+    auto &context = m->getContext();
+    auto ft = llvm::FunctionType::get(llvm::Type::getInt64Ty(context),
+                                      {llvm::Type::getInt64Ty(context), llvm::Type::getInt64Ty(context) }, true);
+    auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "builtin_append", m);
+    return f;
+}
+
+static llvm::Function *make_cons_func(llvm::Module *m) {
+    auto &context = m->getContext();
+    auto ft = llvm::FunctionType::get(llvm::Type::getInt64Ty(context),
+                                      {llvm::Type::getInt64Ty(context), llvm::Type::getInt64Ty(context), llvm::Type::getInt64Ty(context) }, false);
+    auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "builtin_cons", m);
     return f;
 }
 
@@ -925,6 +1045,9 @@ Result<Atom> NativeEngine::execute(Atom a) {
     builtins.push_back(env_get(module.get()));
     builtins.push_back(lambda_get_env_pointer(module.get()));
     builtins.push_back(make_list_func(module.get()));
+    builtins.push_back(llvm_equalsp(module.get()));
+    builtins.push_back(make_cons_func(module.get()));
+    builtins.push_back(make_append_func(module.get()));
 
     for (auto f : builtins) {
         if (llvm::verifyFunction(*f, &llvm::errs())) {

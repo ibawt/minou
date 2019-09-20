@@ -43,7 +43,7 @@ void Lambda::visit()
 
 void Memory::free_node(HeapNode *h)
 {
-    fmt::print("heapnode type: {}\n", h->type());
+    // fmt::print("heapnode type: {}\n", h->type());
     assert(is_heap_type(h->type()));
     switch (h->type()) {
     case AtomType::String: {
@@ -60,8 +60,6 @@ void Memory::free_node(HeapNode *h)
     case AtomType::Cons: {
         auto a = (Cons*)h->buff;
         a->~Cons();
-        // consSlab.free(reinterpret_cast<char *>(h));
-        // return;
     } break;
     case AtomType::Env: {
         auto e = reinterpret_cast<Env*>(h->buff);
@@ -79,11 +77,11 @@ void Memory::sweep() {
     for (auto it = allocations.begin(); it != allocations.end();) {
         auto h = *it;
         if (h->collectable()) {
-            fmt::print("h collectible: {}\n", (uintptr_t)h->buff);
+            // fmt::print("h collectible: {}\n", (uintptr_t)h->buff);
             free_node(h);
             it = allocations.erase(it);
         } else {
-            fmt::print("h not collectible: {}\n", (uintptr_t)h->buff);
+            // fmt::print("h not collectible: {}\n", (uintptr_t)h->buff);
             h->clear_flag(USED);
             ++it;
         }

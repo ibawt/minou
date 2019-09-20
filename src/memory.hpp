@@ -119,21 +119,12 @@ class Memory {
     }
 
     Cons* alloc_cons(Atom a, Cons* next) {
-        auto block = alloc<Cons>();
-        // int len = sizeof(HeapNode) + sizeof(Cons);
-        // memset(block, 0, len);
-        auto hn = reinterpret_cast<HeapNode*>(block);
-        // hn->set_size(len);
-
+        auto hn = alloc<Cons>();
         Cons *c = reinterpret_cast<Cons*>(hn->buff);
         c->car = a;
         c->cdr = next;
 
-        assert( (reinterpret_cast<uintptr_t>(c) & TAG_MASK) == 0 );
         hn->set_type(AtomType::Cons);
-        ++total_allocations;
-        allocations.push_front(hn);
-
         return c;
     }
 
@@ -145,6 +136,7 @@ class Memory {
     template<typename T>
     HeapNode* alloc() {
         auto hn = reinterpret_cast<HeapNode*>(malloc (sizeof(HeapNode) + sizeof(T)));
+        assert( (reinterpret_cast<uintptr_t>(hn->buff) & TAG_MASK) == 0 );
         memset(hn, 0, sizeof(HeapNode) + sizeof(T));
         hn->set_size(sizeof(T));
         allocations.push_front(hn);

@@ -290,6 +290,15 @@ struct Cons {
 
     static Cons from(Atom car, Cons *cdr = nullptr) { return Cons{car, cdr}; }
 
+    Cons* tail() {
+        for(auto c : *this) {
+            if(!c->cdr) {
+                return c;
+            }
+        }
+        return this;
+    }
+
     class iterator {
         Cons *node;
 
@@ -542,14 +551,14 @@ template <> struct formatter<minou::AtomType> {
     }
 };
 
-template <> struct formatter<minou::Cons *> {
+template <> struct formatter<minou::Cons> {
     template <typename ParseContext> constexpr auto parse(ParseContext &ctx) {
         return ctx.begin();
     }
 
     template <typename FormatContext>
-    auto format(const minou::Cons *c, FormatContext &ctx) {
-        return format_to(ctx.begin(), "{}", minou::make_cons(c));
+    auto format(const minou::Cons &c, FormatContext &ctx) {
+        return format_to(ctx.begin(), "{}", minou::make_cons(&c));
     }
 };
 } // namespace fmt

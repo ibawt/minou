@@ -206,12 +206,15 @@ struct Parser {
     }
 
     Result<Atom> expand_quasiquote(Atom a) {
+        fmt::print("expand_quasiquote: {}\n", a);
         if(a.is_list()) {
             std::vector<Atom> list;
             list.push_back(symbol("list"));
-            for (auto c : *a.cons()) {
-                if (c->car.is_pair()) {
 
+            for (auto c : *a.cons()) {
+                fmt::print("looping c = {}\n", *c);
+                if (c->car.is_list()) {
+                    fmt::print("c is a pair\n");
                     auto sublist = c->car.cons();
                     auto s = sublist->car;
 
@@ -221,28 +224,39 @@ struct Parser {
                         if (sym == "unquote") {
                             list.push_back(sublist->cdr->car);
                         } else if (sym == "splice") {
-                            auto aa = expand_quasiquote(sublist->cdr->car);
-                            if( is_error(aa)) {
-                                return aa;
-                            }
-                            auto aaa = get_value(aa);
-                            if( aaa.get_type() == AtomType::Cons) {
-                                for( auto cc : *aaa.cons()) {
-                                    list.push_back(cc->car);
-                                }
-                            } else {
-                                list.push_back(aaa);
-                            }
-                        } else {
+                            std::vector<Atom> new_list;
+
+                            new_list.push_back(symbol("append"));
+                            new_list.push_back( make_cons(memory.make_list(list)));
+
+                            // auto aa = expand_quasiquote(sublist->cdr->car);
+                            // if( is_error(aa)) {
+                            //     return aa;
+                            // }
+                            auto aaa = sublist->cdr->car;
+                            fmt::print("splice->val: {}\n", aaa);
+                            new_list.push_back(aaa);
+                            list = new_list;
+
+                        } else if(sym == "quote") {
+                            fmt::print("is this what we hit?\n");
+                            return a;
+                        }
+                        else {
+                            fmt::print("in here: {}\n", a);
                             return make_cons(memory.make_list(
                                 {symbol("quote"), sublist->cdr->car}));
                         }
                     } else {
+                        fmt::print("over here: {}\n", a);
                         list.push_back(make_cons(
                             memory.make_list({symbol("quote"), c->car})));
                     }
                 } else {
-                    list.push_back(make_cons(memory.make_list({symbol("quote"), c->car}))) ;
+                    fmt::print("way down here: {}\n", *c);
+                    auto x = make_cons(memory.make_list({symbol("quote"), c->car})) ;
+                    auto y = memory.make_list({symbol("list"), x} );
+                    list.push_back(make_cons(y));
                 }
             }
             return make_cons(memory.make_list(list));

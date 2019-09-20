@@ -189,17 +189,37 @@ TEST_F(EvalTest, If) {
          {"(if 5 1 0)", make_integer(1L)}});
 }
 
+TEST_F(EvalTest, Equals) {
+    run({{"(equals 1 1)", make_boolean(true)},
+         {"(equals '(1 2) '(1 2))", make_boolean(true)},
+         {"(equals 1 '())", make_boolean(false)},
+         {"(equals '(1 2) '(3 4))", make_boolean(false)}
+        });
+}
+
+TEST_F(EvalTest, Cons) {
+    run({{"(equals '(1 2) (cons 1 '(2)))", make_boolean(true)}});
+}
+
+TEST_F(EvalTest, Append) {
+    run({{"(equals '(1 2 3 4) (append '(1 2) '(3 4)))", make_boolean(true)}});
+}
+
 TEST_F(EvalTest, Quasi) {
-    // run({{"`a", symbol("a")}});
-    auto a = get_value(engine->eval("`(1 2)"));
-    fmt::print("a.value == {}\n", a.value);
-    lock_object((char*)a.cons());
-    auto e = get_value(engine->eval("'(1 2)"));
-    fmt::print("e = {}\n", e.value);
+    engine->get_env()->set(symbol("a").symbol(), make_integer(5));
+    run({
+         {"(equals `(1 2) '(1 2))", make_boolean(true)},
+         {"(equals `1 1)", make_boolean(true)},
+         {"(equals `(a 5) '(a 5))", make_boolean(true)},
+         {"(begin (define a 5) (equals `(,a 5) '(5 5)))", make_boolean(true)},
+        });
+}
 
-    fmt::print("a = {}, e = {}\n", a, e);
-
-    ASSERT_TRUE(equalsp(a, e));
+TEST_F(EvalTest, Splice) {
+    run({{"(equals `(1 2 ,@'(3 4)) '(1 2 3 4))",make_boolean(true)},
+         {"(equals `(1 ,@'(2 3) 4) '(1 2 3 4))", make_boolean(true)}
+        }
+        );
 }
 
 
