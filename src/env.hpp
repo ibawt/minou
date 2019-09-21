@@ -11,22 +11,15 @@
 #include <string>
 
 namespace minou {
-class Env;
-
-typedef Env *EnvPtr;
-class Engine;
 
 class Env {
   public:
-    Env(EnvPtr p) : parent(p) {}
-    Env(Engine *engine) { default_env(engine); }
-
     std::optional<Atom> lookup(const Symbol &key) {
         auto f = map.find(key.interned_value);
 
         if (f == map.end()) {
-            if (parent.has_value()) {
-                return parent.value()->lookup(key);
+            if (parent) {
+                return parent->lookup(key);
             }
             return {};
         }
@@ -35,8 +28,9 @@ class Env {
 
     void clear() {
         map.clear();
-        parent.reset();
     }
+
+    Env* get_parent() { return parent; }
 
     bool update(const Symbol &key, Atom value) {
         auto t = this;
@@ -49,8 +43,8 @@ class Env {
                 return true;
             }
 
-            if (parent.has_value()) {
-                t = parent.value();
+            if (parent) {
+                t = parent;
             } else {
                 return false;
             }
@@ -59,7 +53,7 @@ class Env {
 
     void for_each(std::function<void(const std::string_view, Atom)> f) {
         for (auto [key, value] : map) {
-            f(Symbol(key).string(), value);
+            f(Symbol::from(key).string(), value);
         }
     }
 
@@ -84,7 +78,7 @@ class Env {
             }
 
             if (k.get_type() != AtomType::Symbol) {
-                return "invalid argument type:" + k.cons()->car.to_string();
+                return fmt::format("invalid argument type: {}", k.cons()->car);
             }
 
             set(k.symbol(), v);
@@ -94,12 +88,14 @@ class Env {
         }
         return {};
     }
+    void visit();
 
   private:
-    void default_env(Engine *);
+    Env(Env* p = nullptr) : parent(p) {}
+    friend class Memory;
 
     std::map<int, Atom> map;
-    std::optional<EnvPtr> parent;
+    Env                *parent;
 };
 
 } // namespace minou

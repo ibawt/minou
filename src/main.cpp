@@ -1,18 +1,20 @@
-#include <iostream>
+#include "engine.hpp"
+#include <cstdlib>
 #include <readline/readline.h>
 
-#include "base.hpp"
-#include "eval.hpp"
-#include "main.hpp"
-#include "minou.hpp"
-#include "parser.hpp"
-
 using namespace minou;
-using std::cout;
-using std::endl;
 
-int main() {
+int main(int argc, char **argv) {
     Engine engine;
+
+    if( argc > 1) {
+        auto x = engine.eval_file(argv[1]);
+        if( is_error(x)) {
+            fmt::print("LOAD: {}\n", get_error(x));
+        }
+
+        fmt::print("LOAD: {}\n", get_value(x));
+    }
 
     for (;;) {
         auto line = readline(">");
@@ -24,15 +26,15 @@ int main() {
         auto result = engine.eval(line);
 
         if (!is_error(result)) {
-            cout << get_value(result).to_string() << endl;
+            fmt::print("-> {}\n", get_value(result));
         } else {
-            cout << "ERR: " << get_error(result) << endl;
+            fmt::print("ERR: {}\n", get_error(result));
         }
 
         free(line);
     }
 
-    cout << "Bye!" << endl;
+    fmt::print("Bye!\n");
 
     return 0;
 }

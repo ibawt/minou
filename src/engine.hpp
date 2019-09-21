@@ -1,34 +1,45 @@
 #ifndef ENGINE_H_
 #define ENGINE_H_
 
+#include "compiler.hpp"
 #include "env.hpp"
-#include "eval.hpp"
-#include "symbol_intern.hpp"
 #include "memory.hpp"
+#include "symbol_intern.hpp"
 #include <string>
 
 namespace minou {
 
 class Engine {
   public:
-    Engine() { global = std::make_unique<Env>(this); }
+    Engine() : global(memory.alloc_env()), native_engine(this, global) {}
     ~Engine() {
         global->clear();
-        memory.mark_and_sweep(global.get());
+        memory.mark_and_sweep(global);
     }
-    EvalResult eval(const std::string_view &s);
-    EvalResult eval(const char *s) { return eval(std::string_view(s)); }
+
+    Result<Atom> eval(const std::string_view &s);
+    Result<Atom> eval(const char *s) { return eval(std::string_view(s)); }
+    Result<Atom> parse(const std::string_view &s);
+
+    Result<Atom> eval_file(const std::string& s);
 
     // const SymbolInterner &get_interner() const { return syms; }
     SymbolInterner &get_interner() { return syms; }
 
-    void gc() { memory.mark_and_sweep(global.get()); }
+    void gc() {
+        global->visit();
+        memory.mark_and_sweep(global);
+    }
     Memory &get_memory() { return memory; }
+
+    Env *get_env() { return global; }
 
   private:
     SymbolInterner syms;
     Memory memory;
-    std::unique_ptr<Env> global;
+    Env *global;
+
+    NativeEngine native_engine;
 };
 
 } // namespace minou

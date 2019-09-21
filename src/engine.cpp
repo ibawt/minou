@@ -1,22 +1,33 @@
 #include "engine.hpp"
-#include "eval.hpp"
 #include "parser.hpp"
 #include <string>
+#include <sstream>
+#include <fstream>
 
 namespace minou {
 
-EvalResult Engine::eval(const std::string_view &s) {
-    memory.mark_and_sweep(global.get());
+Result<Atom> Engine::parse(const std::string_view &s) {
+    return ::minou::parse(memory, s);
+}
 
-    auto atom = parse(memory, s);
+Result<Atom> Engine::eval_file(const std::string& s) {
+    std::ifstream input(s.c_str());
+    std::stringstream buff;
 
+    buff << input.rdbuf();
+
+    return eval(buff.str());
+}
+
+Result<Atom> Engine::eval(const std::string_view &s) {
+    memory.mark_and_sweep(global);
+
+    auto atom = ::minou::parse(memory, s);
     if (is_error(atom)) {
         return atom;
     }
 
-    BottomCont cont;
-
-    return minou::eval(this, get_atom(atom), global.get(), &cont);
+    return native_engine.execute(get_value(atom));
 }
 
 } // namespace minou

@@ -1,4 +1,5 @@
 #include "parser.hpp"
+#include <cerrno>
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -57,17 +58,17 @@ class Buffer {
     size_t position = 0;
 };
 
-static ParseResult error(const char *s) { return std::string(s); }
+static Result<Atom> error(const char *s) { return std::string(s); }
 
-static Atom get_parse_atom(const ParseResult &p) { return std::get<Atom>(p); }
+static Atom get_parse_atom(const Result<Atom> &p) { return std::get<Atom>(p); }
 
 struct Parser {
     Buffer buff;
     Memory &memory;
 
-    ParseResult quote_atom(Atom a) {
-        std::vector<Atom> lis{Symbol("quote"), a};
-        return memory.make_list(lis);
+    Result<Atom> quote_atom(Atom a) {
+        std::vector<Atom> lis{make_symbol(Symbol::from("quote")), a};
+        return make_cons(memory.make_list(lis));
     }
 
     std::optional<std::string> read_value() {
@@ -93,7 +94,7 @@ struct Parser {
         }
     }
 
-    ParseResult parse_list() {
+    Result<Atom> parse_list() {
         std::vector<Atom> list;
 
         for (;;) {
@@ -115,10 +116,10 @@ struct Parser {
                 }
             }
         }
-        return memory.make_list(list);
+        return make_cons(memory.make_list(list));
     }
 
-    ParseResult read_string() {
+    Result<Atom> read_string() {
         std::vector<char> out;
 
         for (;;) {
@@ -137,8 +138,7 @@ struct Parser {
             } break;
             case '"':
                 buff.next();
-                return memory.alloc<String>(
-                    std::string(out.data(), out.size()));
+                return make_string(memory.alloc_string(out.data(), out.size()));
             case EOF:
                 return error("eof");
             default:
@@ -147,7 +147,7 @@ struct Parser {
         }
     }
 
-    ParseResult parse_atom() {
+    Result<Atom> parse_atom() {
         for (;;) {
             int c = buff.peek();
             switch (c) {
@@ -160,7 +160,7 @@ struct Parser {
                     return result;
                 }
                 return quote_atom(get_parse_atom(result));
-            }
+            } break;
             case '(':
                 buff.next();
                 return parse_list();
@@ -168,6 +168,28 @@ struct Parser {
                 buff.next();
                 buff.read_to_new_line();
                 break;
+            case ',': {
+                buff.next();
+                if( buff.peek() == '@') {
+                    buff.next();
+                    auto a = parse_atom();
+                    if(is_error(a))
+                        return a;
+                    return make_cons(memory.make_list( { symbol("splice"), get_value(a)}));
+                } else {
+                    auto a = parse_atom();
+                    if(is_error(a))
+                        return a;
+                    return make_cons(memory.make_list( { symbol("unquote"), get_value(a)}));
+                }
+            } break;
+            case '`': {
+                buff.next();
+                auto a = parse_atom();
+                if(is_error(a))
+                    return a;
+                return expand_quasiquote(get_value(a));
+            } break;
             default:
                 if (isspace(c)) {
                     buff.next();
@@ -179,7 +201,54 @@ struct Parser {
         throw std::runtime_error("invalid parse");
     }
 
-    ParseResult read_atom() {
+    Result<Atom> expand_quasiquote(Atom a) {
+        if(!a.is_pair()) {
+            return make_cons(memory.make_list({ symbol("quote"), a}));
+        }
+
+        auto list = a.cons();
+
+        if(list->car == symbol("unquote")) {
+            return list->cdr->car;
+        } else if(list->car == symbol("quasiquote")) {
+            auto qq = expand_quasiquote(list->cdr->car);
+            if(is_error(qq)) return qq;
+
+            return expand_quasiquote(get_value(qq));
+        }else if(list->car.is_list()) {
+            if(list->car.cons()->car == symbol("splice")) {
+                auto qq = expand_quasiquote(make_cons(list->cdr));
+                if( is_error(qq)) return qq;
+
+                return make_cons(memory.make_list({
+                            symbol("append"),
+                            list->car.cons()->cdr->car,
+                            get_value(qq)}));
+            } else {
+                auto c = expand_quasiquote(list->car);
+                if( is_error(c)) return c;
+                auto cc = expand_quasiquote(make_cons(list->cdr));
+                if( is_error(cc)) return cc;
+                return make_cons(memory.make_list({
+                            symbol("cons"),
+                            get_value(c),
+                            get_value(cc
+                            )
+                        }));
+            }
+        } else {
+            auto c = expand_quasiquote(list->car);
+            if (is_error(c))
+                return c;
+            auto cc = expand_quasiquote(make_cons(list->cdr));
+            if (is_error(cc))
+                return cc;
+            return make_cons(memory.make_list(
+                {symbol("cons"), get_value(c), get_value(cc)}));
+        }
+    }
+
+    Result<Atom> read_atom() {
         if (buff.peek() == '"') {
             buff.next();
             return read_string();
@@ -194,9 +263,9 @@ struct Parser {
         if (v == "nil") {
             return make_nil();
         } else if (v == "#t") {
-            return Atom(Boolean(true));
+            return make_boolean(true);
         } else if (v == "#f") {
-            return Atom(Boolean(false));
+            return make_boolean(false);
         }
 
         if (v.size() == 0) {
@@ -206,15 +275,15 @@ struct Parser {
         if (isdigit(v[0]) || v[0] == '-') {
             auto r = parse_integer(v);
             if (r.has_value()) {
-                return Atom(r.value());
+                return make_integer(r.value());
             }
         }
-        return Symbol(v);
+        return make_symbol(Symbol::from(v));
     }
 };
 
-ParseResult parse(Memory &mem, const std::string_view &s) {
-    Parser p{Buffer(s), mem};
+Result<Atom> parse(Memory &mem, const std::string_view &s) {
+    Parser p{s, mem};
     return p.parse_atom();
 }
 
