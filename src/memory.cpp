@@ -74,6 +74,8 @@ void Memory::free_node(HeapNode *h)
 
 
 void Memory::sweep() {
+    std::scoped_lock guard(lock);
+
     for (auto it = allocations.begin(); it != allocations.end();) {
         auto h = *it;
         if (h->collectable()) {

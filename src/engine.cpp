@@ -27,11 +27,7 @@ Result<Atom> Engine::eval(const std::string_view &s) {
         return atom;
     }
 
-    auto e = native_engine.execute(get_value(atom));
-    if(!is_error(e)) {
-        fmt::print("engine->eval: is {}\n", get_value(e).value);
-    }
-    return e;
+    return native_engine.execute(get_value(atom));
 }
 
 } // namespace minou

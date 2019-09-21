@@ -26,6 +26,7 @@
 #include <vector>
 #include <cstdarg>
 #include <map>
+#include <atomic>
 
 namespace minou {
 
@@ -96,14 +97,12 @@ API int64_t builtin_append(int count, ...)
 
     Cons *initial = va_arg(args, Cons*);
     Cons *tail = initial->tail();
-    fmt::print("{}'s tail is {}\n", *initial, *tail);
     for( int i = 1 ; i < count ; ++i) {
-        auto c = va_arg(args,  Cons*);
-        assert(make_cons(c).get_type() == AtomType::Cons);
-        assert(tail);
-        tail->cdr = c;
-        tail = c->tail();
-        fmt::print("{}'s tail is {}\n", *c, *tail);
+        auto a = va_arg(args,  Atom);
+        tail->cdr = a.cons();
+        if(a.is_nil())
+            break;
+        tail = a.cons()->tail();
     }
 
     return (int64_t)initial;
@@ -111,7 +110,13 @@ API int64_t builtin_append(int count, ...)
 
 }
 
-static int lambdaCounter = 0;
+static std::string lambda_unique_name() {
+    static std::atomic<int> lambda_counter = 0;
+
+    auto n = lambda_counter.fetch_add(1);
+
+    return fmt::format("lambda_{}", n);
+}
 
 class CompilerContext {
   public:
@@ -173,7 +178,7 @@ class CompilerContext {
     }
 
     Result<llvm::Value *> compile(Atom a) {
-        fmt::print("compiling: {}\n", a);
+        // fmt::print("compiling: {}\n", a);
         switch (a.get_type()) {
         case AtomType::Cons:
             if (!a.cons()) {
@@ -256,76 +261,6 @@ class CompilerContext {
                     env->set(a.cons()->cdr->car.symbol(), get_value(func));
 
                     return constant_atom(a.cons()->cdr->car);
-                } else if (sym == "do") {
-                    // FIXME: none of this works and I believe tail calls
-                    // should be used for looping but the experiment lives on,
-                    // shine on you crazy diamond
-                    auto vars = a.cons()->cdr->car;
-                    auto test = a.cons()->cdr->cdr->car;
-                    auto rest = a.cons()->cdr->cdr->cdr;
-
-                    std::vector<Atom> updates;
-                    std::vector<Atom> args;
-                    for( auto c : *vars.cons()) {
-                        auto v = c->car.cons()->car;
-                        args.push_back(v);
-
-                        auto u = c->car.cons()->cdr->car;
-                        args.push_back(u);
-                    }
-
-                    auto& mem = engine->get_memory();
-
-                    fmt::print("vars: {}\n", vars);
-                    fmt::print("test: {}\n", test);
-                    fmt::print("rest: {}\n", make_cons(rest));
-
-                    auto f = builder.GetInsertBlock()->getParent();
-                    auto preheader_bb = builder.GetInsertBlock();
-                    auto loop_bb = llvm::BasicBlock::Create(context, "loop", f);
-
-                    std::vector<llvm::Value*> avars;
-                    for( Cons *c : *vars.cons()) {
-                        auto v = compile(c->car.cons()->cdr->car);
-                        if (is_error(v))
-                            return v;
-                        named_values[c->car.cons()->car.symbol().string()] =
-                            get_value(v);
-                        avars.push_back(get_value(v));
-                    }
-
-                    builder.CreateBr(loop_bb);
-                    builder.SetInsertPoint(loop_bb);
-                    auto v = builder.CreatePHI(llvm::Type::getInt64Ty(context), 2);
-                    v->addIncoming(*avars.begin(), preheader_bb);
-
-                    auto e = compile(make_cons(rest));
-                    if( is_error(e)) return e;
-
-                    auto fst = vars.cons()->car.cons()->cdr->cdr;
-
-                    auto step = compile(make_cons(fst));
-                    if( is_error(step)) {
-                        return step;
-                    }
-
-                    auto testv = compile(test);
-                    if(is_error(testv)) {
-                        return testv;
-                    }
-
-                    auto endCond = builder.CreateICmpEQ(get_value(testv), constant_atom(make_boolean(false)));
-
-                    auto loopendbb = builder.GetInsertBlock();
-                    auto afterbb = llvm::BasicBlock::Create(context, "afterloop", f);
-
-                    builder.CreateCondBr(endCond, loop_bb, afterbb);
-
-                    builder.SetInsertPoint(afterbb);
-
-                    v->addIncoming(get_value(step), loopendbb);
-
-                    return step;
                 } else if (sym == "=") {
                     auto x = compile(a.cons()->cdr->car);
                     auto y = compile(a.cons()->cdr->cdr->car);
@@ -523,7 +458,8 @@ class CompilerContext {
     }
 
     Result<llvm::Value*> compile_macro(Atom a) {
-        auto name = fmt::format("lambda_{}", lambdaCounter++);
+        auto name = lambda_unique_name();
+
         std::vector<llvm::Type *> args(a.cons()->cdr->car.cons()->length(),
                                        llvm::Type::getInt64Ty(context));
         args.push_back(atom_type());
@@ -562,12 +498,6 @@ class CompilerContext {
 
         for (; it != f->args().end(); ++it) {
             it->setName(c->car.symbol().string());
-            // for( auto& arg : *l->arguments ) {
-            //     if( arg.symbol == c->car.symbol() && arg.is_closed_over) {
-            //         cbuilder.CreateCall(module->getFunction("env_set"),
-            //                             {envValue, constant_atom(c->car), it});
-            //     }
-            // }
             c = c->cdr;
         }
 
@@ -590,7 +520,7 @@ class CompilerContext {
     }
 
     Result<llvm::Value *> compile_lambda(Atom a) {
-        auto name = fmt::format("lambda_{}", lambdaCounter++);
+        auto name = lambda_unique_name();
         std::vector<llvm::Type *> args(a.cons()->cdr->car.cons()->length(),
                                        llvm::Type::getInt64Ty(context));
         args.push_back(atom_type());
@@ -835,16 +765,16 @@ static llvm::Function *get_function_pointer(llvm::Module *m) {
     return f;
 }
 
-    static llvm::Function  *llvm_equalsp(llvm::Module*m) {
-        auto ft =
-            llvm::FunctionType::get(llvm::Type::getInt64Ty(m->getContext()),
-                                    llvm::Type::getInt64Ty(m->getContext()), true);
+static llvm::Function  *llvm_equalsp(llvm::Module*m) {
+    auto ft =
+        llvm::FunctionType::get(llvm::Type::getInt64Ty(m->getContext()),
+                                llvm::Type::getInt64Ty(m->getContext()), true);
 
-        auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage,
-                                        "equalsp_ex", m);
+    auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage,
+                                    "equalsp_ex", m);
 
-        return f;
-    }
+    return f;
+}
 
 static llvm::Function *lambda_get_env_pointer(llvm::Module *m) {
     auto ft =

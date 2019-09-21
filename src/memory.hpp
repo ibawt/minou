@@ -10,6 +10,7 @@
 #include <vector>
 #include "slab.hpp"
 #include <string>
+#include <mutex>
 
 namespace minou {
 
@@ -139,10 +140,17 @@ class Memory {
         assert( (reinterpret_cast<uintptr_t>(hn->buff) & TAG_MASK) == 0 );
         memset(hn, 0, sizeof(HeapNode) + sizeof(T));
         hn->set_size(sizeof(T));
-        allocations.push_front(hn);
-        total_allocations++;
+
+        add_to_free_list(hn);
         return hn;
     }
+
+    void add_to_free_list(HeapNode*hn) {
+        std::scoped_lock guard(lock);
+        allocations.push_front(hn);
+        total_allocations++;
+    }
+
     void free_node(HeapNode *);
     // Slab consSlab = Slab(sizeof(HeapNode) + sizeof(Cons), 1024 * 1024);
 
@@ -154,6 +162,8 @@ class Memory {
     void sweep();
 
     std::list<HeapNode *> allocations;
+
+    std::mutex lock;
 };
 
 } // namespace minou

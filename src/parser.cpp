@@ -188,11 +188,7 @@ struct Parser {
                 auto a = parse_atom();
                 if(is_error(a))
                     return a;
-
-                auto aa = get_value(a);
-
-                auto ee = expand_quasiquote(aa);
-                return ee;
+                return expand_quasiquote(get_value(a));
             } break;
             default:
                 if (isspace(c)) {
@@ -206,62 +202,49 @@ struct Parser {
     }
 
     Result<Atom> expand_quasiquote(Atom a) {
-        fmt::print("expand_quasiquote: {}\n", a);
-        if(a.is_list()) {
-            std::vector<Atom> list;
-            list.push_back(symbol("list"));
+        if(!a.is_pair()) {
+            return make_cons(memory.make_list({ symbol("quote"), a}));
+        }
 
-            for (auto c : *a.cons()) {
-                fmt::print("looping c = {}\n", *c);
-                if (c->car.is_list()) {
-                    fmt::print("c is a pair\n");
-                    auto sublist = c->car.cons();
-                    auto s = sublist->car;
+        auto list = a.cons();
 
-                    if (s.get_type() == AtomType::Symbol) {
-                        auto sym = s.symbol();
+        if(list->car == symbol("unquote")) {
+            return list->cdr->car;
+        } else if(list->car == symbol("quasiquote")) {
+            auto qq = expand_quasiquote(list->cdr->car);
+            if(is_error(qq)) return qq;
 
-                        if (sym == "unquote") {
-                            list.push_back(sublist->cdr->car);
-                        } else if (sym == "splice") {
-                            std::vector<Atom> new_list;
+            return expand_quasiquote(get_value(qq));
+        }else if(list->car.is_list()) {
+            if(list->car.cons()->car == symbol("splice")) {
+                auto qq = expand_quasiquote(make_cons(list->cdr));
+                if( is_error(qq)) return qq;
 
-                            new_list.push_back(symbol("append"));
-                            new_list.push_back( make_cons(memory.make_list(list)));
-
-                            // auto aa = expand_quasiquote(sublist->cdr->car);
-                            // if( is_error(aa)) {
-                            //     return aa;
-                            // }
-                            auto aaa = sublist->cdr->car;
-                            fmt::print("splice->val: {}\n", aaa);
-                            new_list.push_back(aaa);
-                            list = new_list;
-
-                        } else if(sym == "quote") {
-                            fmt::print("is this what we hit?\n");
-                            return a;
-                        }
-                        else {
-                            fmt::print("in here: {}\n", a);
-                            return make_cons(memory.make_list(
-                                {symbol("quote"), sublist->cdr->car}));
-                        }
-                    } else {
-                        fmt::print("over here: {}\n", a);
-                        list.push_back(make_cons(
-                            memory.make_list({symbol("quote"), c->car})));
-                    }
-                } else {
-                    fmt::print("way down here: {}\n", *c);
-                    auto x = make_cons(memory.make_list({symbol("quote"), c->car})) ;
-                    auto y = memory.make_list({symbol("list"), x} );
-                    list.push_back(make_cons(y));
-                }
+                return make_cons(memory.make_list({
+                            symbol("append"),
+                            list->car.cons()->cdr->car,
+                            get_value(qq)}));
+            } else {
+                auto c = expand_quasiquote(list->car);
+                if( is_error(c)) return c;
+                auto cc = expand_quasiquote(make_cons(list->cdr));
+                if( is_error(cc)) return cc;
+                return make_cons(memory.make_list({
+                            symbol("cons"),
+                            get_value(c),
+                            get_value(cc
+                            )
+                        }));
             }
-            return make_cons(memory.make_list(list));
         } else {
-            return make_cons(memory.make_list({symbol("quote"), a}));
+            auto c = expand_quasiquote(list->car);
+            if (is_error(c))
+                return c;
+            auto cc = expand_quasiquote(make_cons(list->cdr));
+            if (is_error(cc))
+                return cc;
+            return make_cons(memory.make_list(
+                {symbol("cons"), get_value(c), get_value(cc)}));
         }
     }
 
