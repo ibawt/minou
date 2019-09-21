@@ -1,5 +1,4 @@
 #include "minou.hpp"
-#include <assert.h>
 
 namespace minou {
 
