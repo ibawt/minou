@@ -6,6 +6,7 @@
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IRReader/IRReader.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
@@ -28,87 +29,9 @@
 #include <map>
 #include <atomic>
 
+
 namespace minou {
 
-
-#define API __attribute__((visibility("default")))
-extern "C" {
-API int64_t env_set(Env *env, Atom sym, Atom value) {
-    env->set(sym.symbol(), value);
-    return sym.value;
-}
-
-API int64_t env_get(Env *env, Atom sym) {
-    auto x = env->lookup(sym.symbol());
-    if (x.has_value()) {
-        return x.value().value;
-    }
-    return make_nil().value;
-}
-
-API int64_t make_list(Engine *e, int64_t count, ...)
-{
-    //TODO: if we compile this in reverse order we can avoid
-    // the temporary list
-    va_list args;
-    va_start(args, count);
-
-    std::vector<Atom> list;
-
-    for(int i = 0 ; i < count; ++i) {
-        Atom a = va_arg(args, Atom);
-        list.push_back(a);
-    }
-    va_end(args);
-
-    return make_cons(e->get_memory().make_list(list)).value;
-}
-
-API int64_t equalsp_ex(int count, ...) {
-    va_list args;
-    va_start(args, count);
-
-    if(count <= 0 ) {
-        return make_boolean(false).value;
-    }
-
-    auto a = va_arg(args, Atom);
-
-    for( int i = 1 ; i < count ; ++i) {
-        auto b = va_arg(args, Atom);
-        if(!equalsp(a, b)) {
-            return make_boolean(false).value;
-        }
-    }
-    return make_boolean(true).value;
-}
-
-API int64_t builtin_cons(Engine *e, Atom value,  Atom list)
-{
-    return make_cons(e->get_memory().alloc_cons(value, list.cons())).value;
-}
-
-API int64_t builtin_append(int count, ...)
-{
-    va_list args;
-    va_start(args, count);
-
-    assert(count > 1);
-
-    Cons *initial = va_arg(args, Cons*);
-    Cons *tail = initial->tail();
-    for( int i = 1 ; i < count ; ++i) {
-        auto a = va_arg(args,  Atom);
-        tail->cdr = a.cons();
-        if(a.is_nil())
-            break;
-        tail = a.cons()->tail();
-    }
-
-    return (int64_t)initial;
-}
-
-}
 
 static std::string lambda_unique_name() {
     static std::atomic<int> lambda_counter = 0;
@@ -946,8 +869,14 @@ static llvm::Function *atom_to_integer(llvm::Module *module) {
     return f;
 }
 
+std::unique_ptr<llvm::Module> load_bitcode(llvm::LLVMContext& context)
+{
+    llvm::SMDiagnostic err;
+    return llvm::parseIRFile("../builtins.ll", err, context);
+}
+
 Result<Atom> NativeEngine::execute(Atom a) {
-    auto module = std::make_unique<llvm::Module>("anon", context);
+    auto module = load_bitcode(context);
     module->setDataLayout(jit->getTargetMachine().createDataLayout());
     module->setTargetTriple(jit->getTargetMachine().getTargetTriple().str());
 
@@ -971,13 +900,13 @@ Result<Atom> NativeEngine::execute(Atom a) {
     builtins.push_back(atom_to_integer(module.get()));
     builtins.push_back(atom_to_type(module.get()));
     builtins.push_back(get_function_pointer(module.get()));
-    builtins.push_back(env_set(module.get()));
-    builtins.push_back(env_get(module.get()));
-    builtins.push_back(lambda_get_env_pointer(module.get()));
-    builtins.push_back(make_list_func(module.get()));
-    builtins.push_back(llvm_equalsp(module.get()));
-    builtins.push_back(make_cons_func(module.get()));
-    builtins.push_back(make_append_func(module.get()));
+    // builtins.push_back(env_set(module.get()));
+    // builtins.push_back(env_get(module.get()));
+    // builtins.push_back(lambda_get_env_pointer(module.get()));
+    // builtins.push_back(make_list_func(module.get()));
+    // builtins.push_back(llvm_equalsp(module.get()));
+    // builtins.push_back(make_cons_func(module.get()));
+    // builtins.push_back(make_append_func(module.get()));
 
     for (auto f : builtins) {
         if (llvm::verifyFunction(*f, &llvm::errs())) {
@@ -1009,19 +938,19 @@ Result<Atom> NativeEngine::execute(Atom a) {
 
     mpm.run(*module.get());
 
-    // for( auto& F : *module) {
-    //     F.print(llvm::errs());
-    // }
+    for( auto& F : *module) {
+        F.print(llvm::errs());
+    }
 
-    // llvm::legacy::PassManager pm;
-    // jit->getTargetMachine().Options.MCOptions.AsmVerbose = true;
+    llvm::legacy::PassManager pm;
+    jit->getTargetMachine().Options.MCOptions.AsmVerbose = true;
 
-    // auto out_file = llvm::raw_fd_ostream(0, false);
-    // if(jit->getTargetMachine().addPassesToEmitFile(pm, out_file, &out_file, llvm::TargetMachine::CGFT_AssemblyFile) ) {
-    //     llvm::errs().flush();
-    // } else {
-    //     pm.run(*module.get());
-    // }
+    auto out_file = llvm::raw_fd_ostream(0, false);
+    if(jit->getTargetMachine().addPassesToEmitFile(pm, out_file, &out_file, llvm::TargetMachine::CGFT_AssemblyFile) ) {
+        llvm::errs().flush();
+    } else {
+        pm.run(*module.get());
+    }
 
     fpm->doFinalization();
 
