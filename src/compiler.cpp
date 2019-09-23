@@ -192,12 +192,15 @@ class CompilerContext {
                 }
                 else if(sym == "pair?") {
                     auto f= getFunction("builtin_pair_p");
+                    assert(f);
 
                     auto r = compile(a.cons()->cdr->car);
                     if(is_error(r))
                         return r;
 
-                    return builder.CreateCall(f, get_value(r));
+                    auto x =  builder.CreateCall(f, get_value(r));
+                    x->setCallingConv(llvm::CallingConv::Fast);
+                    return x;
                 }
                 else if(sym == "append") {
                     auto f = getFunction("builtin_append");
@@ -777,7 +780,7 @@ static llvm::Function *get_function_pointer(llvm::Module *m) {
 static llvm::Function *builtin_pair_p(llvm::Module *m) {
     auto ft =
         llvm::FunctionType::get(llvm::Type::getInt64Ty(m->getContext()),
-                                {llvm::Type::getInt64Ty(m->getContext())},
+                                llvm::Type::getInt64Ty(m->getContext()),
                                 false);
 
     auto f = llvm::Function::Create(ft, llvm::Function::PrivateLinkage,
@@ -1079,19 +1082,19 @@ Result<Atom> NativeEngine::execute(Atom a) {
 
     mpm.run(*module.get());
 
-    // for( auto& F : *module) {
-    //     F.print(llvm::errs());
-    // }
+    for( auto& F : *module) {
+        F.print(llvm::errs());
+    }
 
-    // llvm::legacy::PassManager pm;
-    // jit->getTargetMachine().Options.MCOptions.AsmVerbose = true;
+    llvm::legacy::PassManager pm;
+    jit->getTargetMachine().Options.MCOptions.AsmVerbose = true;
 
-    // auto out_file = llvm::raw_fd_ostream(0, false);
-    // if(jit->getTargetMachine().addPassesToEmitFile(pm, out_file, &out_file, llvm::TargetMachine::CGFT_AssemblyFile) ) {
-    //     llvm::errs().flush();
-    // } else {
-    //     pm.run(*module.get());
-    // }
+    auto out_file = llvm::raw_fd_ostream(0, false);
+    if(jit->getTargetMachine().addPassesToEmitFile(pm, out_file, &out_file, llvm::TargetMachine::CGFT_AssemblyFile) ) {
+        llvm::errs().flush();
+    } else {
+        pm.run(*module.get());
+    }
 
     fpm->doFinalization();
 
