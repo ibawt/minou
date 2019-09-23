@@ -222,6 +222,22 @@ TEST_F(EvalTest, Splice) {
         );
 }
 
+TEST_F(EvalTest, Pair) {
+    run({
+            { "(pair? 1)", make_boolean(false)},
+            { "(pair? '())", make_boolean(false)},
+            { "(pair? '(1))", make_boolean(true)}
+        });
+}
+
+TEST_F(EvalTest, Not) {
+    run({
+            { "(not #f)", make_boolean(true)},
+            { "(not #t)", make_boolean(false)},
+            { "(not '())", make_boolean(false)},
+        });
+}
+
 
 // TEST_F(EvalTest, CallCC) {
 //     run({

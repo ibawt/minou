@@ -108,6 +108,22 @@ API int64_t builtin_append(int count, ...)
     return (int64_t)initial;
 }
 
+API int64_t builtin_reverse(Engine* e, Atom a)
+{
+    std::vector<Atom> vals;
+
+    for( auto c : *a.cons() ) {
+        vals.push_back(c->car);
+    }
+
+    std::vector<Atom> reversed;
+    for( auto c = vals.rbegin(); c != vals.rend() ; ++c) {
+        reversed.push_back(*c);
+    }
+
+    return (int64_t)e->get_memory().make_list(reversed);
+}
+
 }
 
 static std::string lambda_unique_name() {
@@ -189,6 +205,15 @@ class CompilerContext {
 
                 if (sym == "if") {
                     return compile_if(a);
+                }
+                else if(sym == "not") {
+                    auto f = getFunction("builtin_not");
+                    auto r = compile(a.cons()->cdr->car);
+                    if(is_error(r)) return r;
+
+                    auto x = builder.CreateCall(f, get_value(r));
+                    x->setCallingConv(llvm::CallingConv::Fast);
+                    return x;
                 }
                 else if(sym == "pair?") {
                     auto f= getFunction("builtin_pair_p");
@@ -777,6 +802,59 @@ static llvm::Function *get_function_pointer(llvm::Module *m) {
     return f;
 }
 
+static llvm::Function *builtin_not(llvm::Module *m) {
+    auto ft =
+        llvm::FunctionType::get(llvm::Type::getInt64Ty(m->getContext()),
+                                llvm::Type::getInt64Ty(m->getContext()),
+                                false);
+
+    auto f = llvm::Function::Create(ft, llvm::Function::PrivateLinkage,
+                                    "builtin_not", m);
+
+    f->setCallingConv(llvm::CallingConv::Fast);
+    llvm::IRBuilder builder(m->getContext());
+    auto bb = llvm::BasicBlock::Create(m->getContext(), "entry", f);
+    builder.SetInsertPoint(bb);
+
+    auto is_list = builder.CreateICmpEQ(f->args().begin(), llvm::ConstantInt::get(m->getContext(), llvm::APInt(64, (int)make_boolean(false).value)));
+
+    auto theFunc = builder.GetInsertBlock()->getParent();
+    auto& context = m->getContext();
+    auto thenBB = llvm::BasicBlock::Create(context, "then", theFunc);
+
+    auto elseBB = llvm::BasicBlock::Create(context, "else");
+    auto mergeBB = llvm::BasicBlock::Create(context, "ifcont");
+    builder.CreateCondBr(is_list, thenBB, elseBB);
+
+    builder.SetInsertPoint(thenBB);
+
+    auto then = llvm::ConstantInt::get(context, llvm::APInt(64, make_boolean(true).value)) ;
+    builder.CreateBr(mergeBB);
+
+    thenBB = builder.GetInsertBlock();
+
+    theFunc->getBasicBlockList().push_back(elseBB);
+    builder.SetInsertPoint(elseBB);
+
+    auto elseV = llvm::ConstantInt::get(
+        context, llvm::APInt(64, make_boolean(false).value));
+
+    builder.CreateBr(mergeBB);
+    elseBB = builder.GetInsertBlock();
+
+    theFunc->getBasicBlockList().push_back(mergeBB);
+    builder.SetInsertPoint(mergeBB);
+
+    auto pn = builder.CreatePHI(llvm::Type::getInt64Ty(context), 2, "iftmp");
+
+    pn->addIncoming(then, thenBB);
+    pn->addIncoming(elseV, elseBB);
+
+    builder.CreateRet(pn);
+
+    return f;
+}
+
 static llvm::Function *builtin_pair_p(llvm::Module *m) {
     auto ft =
         llvm::FunctionType::get(llvm::Type::getInt64Ty(m->getContext()),
@@ -1050,6 +1128,7 @@ Result<Atom> NativeEngine::execute(Atom a) {
     builtins.push_back(make_cons_func(module.get()));
     builtins.push_back(make_append_func(module.get()));
     builtins.push_back(builtin_pair_p(module.get()));
+    builtins.push_back(builtin_not(module.get()));
 
     for (auto f : builtins) {
         if (llvm::verifyFunction(*f, &llvm::errs())) {
