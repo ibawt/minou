@@ -238,6 +238,20 @@ TEST_F(EvalTest, Not) {
         });
 }
 
+TEST_F(EvalTest, Car) {
+    run({
+            { "(equals (car '(1)) 1)", make_boolean(true)},
+            { "(equals (car '((1)) '(1)))", make_boolean(true)},
+        });
+}
+
+TEST_F(EvalTest, Cdr) {
+    run({
+            {"(equals (cdr '(1) '()))", make_boolean(true)},
+            {"(equals (cdr '(1 2) '(2)))", make_boolean(true)},
+        });
+}
+
 
 // TEST_F(EvalTest, CallCC) {
 //     run({

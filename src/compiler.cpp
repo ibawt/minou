@@ -85,6 +85,7 @@ API int64_t equalsp_ex(int count, ...) {
 
 API int64_t builtin_cons(Engine *e, Atom value,  Atom list)
 {
+    fmt::print("consing {} to {}\n", value, list);
     return make_cons(e->get_memory().alloc_cons(value, list.cons())).value;
 }
 
@@ -205,6 +206,23 @@ class CompilerContext {
 
                 if (sym == "if") {
                     return compile_if(a);
+                }
+                else if(sym == "car") {
+                    auto f = getFunction("builtin_car");
+                    auto r = compile(a.cons()->cdr->car);
+                    if(is_error(r)) return r;
+                    auto x = builder.CreateCall(f, get_value(r));
+                    x->setCallingConv(llvm::CallingConv::Fast);
+                    return x;
+                }
+                else if(sym == "cdr") {
+                    auto f = getFunction("builtin_cdr");
+                    auto r = compile(a.cons()->cdr->car);
+                    if (is_error(r))
+                        return r;
+                    auto x = builder.CreateCall(f, get_value(r));
+                    x->setCallingConv(llvm::CallingConv::Fast);
+                    return x;
                 }
                 else if(sym == "not") {
                     auto f = getFunction("builtin_not");
@@ -802,6 +820,86 @@ static llvm::Function *get_function_pointer(llvm::Module *m) {
     return f;
 }
 
+static llvm::Function *builtin_car(llvm::Module *m) {
+    auto ft =
+        llvm::FunctionType::get(llvm::Type::getInt64Ty(m->getContext()),
+                                llvm::Type::getInt64Ty(m->getContext()),
+                                false);
+
+    auto f = llvm::Function::Create(ft, llvm::Function::PrivateLinkage,
+                                    "builtin_car", m);
+
+    f->setCallingConv(llvm::CallingConv::Fast);
+    llvm::IRBuilder builder(m->getContext());
+    auto bb = llvm::BasicBlock::Create(m->getContext(), "entry", f);
+    builder.SetInsertPoint(bb);
+
+    auto p = builder.CreateIntToPtr(f->args().begin(), llvm::Type::getInt64Ty(m->getContext())->getPointerTo());
+
+    auto pp = builder.CreateLoad(p);
+
+    builder.CreateRet(pp);
+
+    return f;
+}
+
+static llvm::Function *builtin_cdr(llvm::Module *m) {
+    auto ft =
+        llvm::FunctionType::get(llvm::Type::getInt64Ty(m->getContext()),
+                                llvm::Type::getInt64Ty(m->getContext()), false);
+
+    auto f = llvm::Function::Create(ft, llvm::Function::PrivateLinkage,
+                                    "builtin_cdr", m);
+
+    f->setCallingConv(llvm::CallingConv::Fast);
+    llvm::IRBuilder builder(m->getContext());
+    auto bb = llvm::BasicBlock::Create(m->getContext(), "entry", f);
+    builder.SetInsertPoint(bb);
+
+    auto a = builder.CreateAdd(f->args().begin(), llvm::ConstantInt::get(m->getContext(), llvm::APInt(64, offsetof(Cons, cdr))));
+
+    auto p = builder.CreateIntToPtr(a,
+        llvm::Type::getInt64Ty(m->getContext())->getPointerTo());
+
+    auto pp = builder.CreateLoad(p);
+
+    auto is_nil = builder.CreateICmpEQ(pp, llvm::ConstantInt::get(m->getContext(), llvm::APInt(64, 0)));
+
+    auto theFunc = builder.GetInsertBlock()->getParent();
+    auto& context = m->getContext();
+    auto thenBB = llvm::BasicBlock::Create(context, "then", theFunc);
+
+    auto elseBB = llvm::BasicBlock::Create(context, "else");
+    auto mergeBB = llvm::BasicBlock::Create(context, "ifcont");
+    builder.CreateCondBr(is_nil, thenBB, elseBB);
+
+    builder.SetInsertPoint(thenBB);
+
+    auto then = llvm::ConstantInt::get(context, llvm::APInt(64, make_nil().value)) ;
+    builder.CreateBr(mergeBB);
+
+    thenBB = builder.GetInsertBlock();
+
+    theFunc->getBasicBlockList().push_back(elseBB);
+    builder.SetInsertPoint(elseBB);
+
+    auto elseV = pp;
+
+    builder.CreateBr(mergeBB);
+    elseBB = builder.GetInsertBlock();
+
+    theFunc->getBasicBlockList().push_back(mergeBB);
+    builder.SetInsertPoint(mergeBB);
+
+    auto pn = builder.CreatePHI(llvm::Type::getInt64Ty(context), 2, "iftmp");
+
+    pn->addIncoming(then, thenBB);
+    pn->addIncoming(elseV, elseBB);
+
+    builder.CreateRet(pn);
+
+    return f;
+}
 static llvm::Function *builtin_not(llvm::Module *m) {
     auto ft =
         llvm::FunctionType::get(llvm::Type::getInt64Ty(m->getContext()),
@@ -1129,6 +1227,8 @@ Result<Atom> NativeEngine::execute(Atom a) {
     builtins.push_back(make_append_func(module.get()));
     builtins.push_back(builtin_pair_p(module.get()));
     builtins.push_back(builtin_not(module.get()));
+    builtins.push_back(builtin_car(module.get()));
+    builtins.push_back(builtin_cdr(module.get()));
 
     for (auto f : builtins) {
         if (llvm::verifyFunction(*f, &llvm::errs())) {
