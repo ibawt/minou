@@ -109,22 +109,6 @@ API int64_t builtin_append(int count, ...)
     return (int64_t)initial;
 }
 
-API int64_t builtin_reverse(Engine* e, Atom a)
-{
-    std::vector<Atom> vals;
-
-    for( auto c : *a.cons() ) {
-        vals.push_back(c->car);
-    }
-
-    std::vector<Atom> reversed;
-    for( auto c = vals.rbegin(); c != vals.rend() ; ++c) {
-        reversed.push_back(*c);
-    }
-
-    return (int64_t)e->get_memory().make_list(reversed);
-}
-
 }
 
 static std::string lambda_unique_name() {
