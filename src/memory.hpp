@@ -67,7 +67,6 @@ public:
 class Memory {
   public:
     ~Memory() { free_all(); }
-
     Cons *make_list(const std::vector<Atom> &list) {
         Cons *c = nullptr;
         Cons *head = nullptr;

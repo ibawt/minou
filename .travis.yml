@@ -1,9 +1,16 @@
 language: c++
-services:
-  - docker
-
-before_install:
-- docker build . -t minou -f t/Dockerfile
-
+dist: bionic
+addons:
+  apt:
+    packages:
+    - zlib1g-dev
+    - libreadline-dev
+    - cmake
+    - git
+    - llvm-8-dev
 script:
-- docker run minou
+- mkdir -p build
+- cd build
+- LLVM_DIR=/usr/lib/llvm-8 cmake ../
+- make
+- ./minou-tests

@@ -1,7 +1,8 @@
+#include "engine.hpp"
 #include "minou.hpp"
 #include "parser.hpp"
-#include "engine.hpp"
 #include "gtest/gtest.h"
+#include <dirent.h>
 #include <memory>
 #include <string>
 #include <vector>
@@ -147,6 +148,44 @@ class EvalTest : public ::testing::Test {
     }
     std::unique_ptr<Engine> engine;
 };
+bool has_ending(std::string_view const fullString, std::string_view const ending) {
+    if (fullString.length() >= ending.length()) {
+        return (0 == fullString.compare(fullString.length() - ending.length(),
+                                        ending.length(), ending));
+    } else {
+        return false;
+    }
+}
+Result<std::vector<std::string>> test_files()
+{
+    auto dir = opendir("../t");
+    if (!dir ){
+        return "error opening dir";
+    }
+
+    dirent *entry;
+    std::vector<std::string> files;
+
+    while((entry = readdir(dir))) {
+        if(entry->d_type == DT_REG && has_ending(entry->d_name, "_test.ss")) {
+            files.push_back("../t/" + std::string(entry->d_name));
+        }
+    }
+    closedir(dir);
+
+    return files;
+}
+
+TEST_F(EvalTest, Units) {
+    auto files = test_files();
+    ASSERT_FALSE(is_error(files));
+
+    for (auto &file : get_value(files)) {
+        auto v = engine->eval_file(file);
+        ASSERT_FALSE(is_error(v)) << get_error(v).get_message();
+        EXPECT_EQ( get_value(v), make_boolean(true));
+    }
+}
 
 TEST_F(EvalTest, TailCall) {
     run({{"(begin (define foo (lambda (n acc) (if (= 0 n) acc (foo (- n 1) (+ "

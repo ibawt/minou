@@ -63,7 +63,9 @@ set(files
   )
 
 add_library(minou ${files})
-add_executable(mli ${main})
+add_executable(minou-bin ${main})
+
+set_target_properties(minou-bin PROPERTIES OUTPUT_NAME minou)
 
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS} -fPIC)
@@ -71,8 +73,8 @@ add_definitions(${LLVM_DEFINITIONS} -fPIC)
 llvm_map_components_to_libnames(llvm_libs target X86 support core irreader orcjit executionengine ipo)
 
 target_compile_features(minou PRIVATE cxx_std_17)
-target_compile_features(mli PRIVATE cxx_std_17)
-target_link_libraries(mli minou readline fmt ${llvm_libs})
+target_compile_features(minou-bin PRIVATE cxx_std_17)
+target_link_libraries(minou-bin minou readline fmt ${llvm_libs})
 
 # # Add test cpp file
 add_executable( minou-tests t/test_main.cpp)

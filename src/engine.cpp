@@ -13,14 +13,18 @@ Result<Atom> Engine::parse(const std::string_view &s) {
 Result<Atom> Engine::eval_file(const std::string& s) {
     std::ifstream input(s.c_str());
     std::stringstream buff;
+    buff << "(begin ";
 
     buff << input.rdbuf();
+
+    buff << ")";
 
     return eval(buff.str());
 }
 
 Result<Atom> Engine::eval(const std::string_view &s) {
-    memory.mark_and_sweep(global);
+    // TODO: we need to mark stack entries, gcstate or w/e
+    // memory.mark_and_sweep(global);
 
     auto atom = ::minou::parse(memory, s);
     if (is_error(atom)) {
