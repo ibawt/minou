@@ -1998,50 +1998,57 @@ static llvm::Function *delete_exception_func(llvm::Module *m) {
     return f;
 }
 
+static ExceptionConfig exception_config(llvm::LLVMContext& context) {
+    ExceptionConfig expConfig;
+
+    using TypeArray = llvm::ArrayRef<llvm::Type *>;
+
+    expConfig.type_info_type =
+        llvm::StructType::get(context, TypeArray(llvm::Type::getInt32Ty(context)));
+
+    llvm::Type *caughtTypes[] = {llvm::Type::getInt8PtrTy(context), llvm::Type::getInt32Ty(context)};
+
+    expConfig.caught_result_type =
+        llvm::StructType::get(context, TypeArray(caughtTypes));
+
+    expConfig.exception_type =
+        llvm::StructType::get(context, TypeArray(expConfig.type_info_type));
+
+    expConfig.unwind_exception_type =
+        llvm::StructType::get(context, TypeArray(llvm::Type::getInt64Ty(context)));
+
+    return expConfig;
+
+}
+
 Result<Atom> NativeEngine::execute(Atom a) {
     auto name = expression_unique_name();
     auto module = std::make_unique<llvm::Module>("anon", jit->getContext());
     module->setDataLayout(jit->getDataLayout());
     auto& context = getContext();
 
-    llvm::legacy::PassManager mpm;
-    llvm::PassManagerBuilder pmBuilder;
-
-    pmBuilder.Inliner = llvm::createFunctionInliningPass();
-    pmBuilder.OptLevel = 3;
-    pmBuilder.populateModulePassManager(mpm);
-
-    auto fpm =
-        std::make_unique<llvm::legacy::FunctionPassManager>(module.get());
-    fpm->add(llvm::createTailCallEliminationPass());
-    fpm->add(llvm::createPromoteMemoryToRegisterPass());
-    fpm->add(llvm::createInstructionCombiningPass());
-    fpm->add(llvm::createReassociatePass());
-    fpm->add(llvm::createGVNPass());
-    fpm->add(llvm::createCFGSimplificationPass());
-    fpm->doInitialization();
-
-    std::vector<llvm::Function *> builtins;
-    builtins.push_back(atom_to_integer(module.get()));
-    builtins.push_back(atom_to_type(module.get()));
-    builtins.push_back(get_function_pointer(module.get()));
-    builtins.push_back(env_set(module.get()));
-    builtins.push_back(env_get(module.get()));
-    builtins.push_back(lambda_get_env_pointer(module.get()));
-    builtins.push_back(make_list_func(module.get()));
-    builtins.push_back(llvm_equalsp(module.get()));
-    builtins.push_back(make_cons_func(module.get()));
-    builtins.push_back(make_append_func(module.get()));
-    builtins.push_back(builtin_pair_p(module.get()));
-    builtins.push_back(builtin_not(module.get()));
-    builtins.push_back(builtin_car(module.get()));
-    builtins.push_back(builtin_cdr(module.get()));
-    builtins.push_back(unwind_raise(module.get()));
-    builtins.push_back(unwind_resume(module.get()));
-    builtins.push_back(my_personality_func(module.get()));
-    builtins.push_back(delete_exception_func(module.get()));
-    builtins.push_back(create_exception_func(module.get()));
-    builtins.push_back(display_func(module.get()));
+    std::vector<llvm::Function *> builtins{
+        atom_to_integer(module.get()),
+        atom_to_type(module.get()),
+        get_function_pointer(module.get()),
+        env_set(module.get()),
+        env_get(module.get()),
+        lambda_get_env_pointer(module.get()),
+        make_list_func(module.get()),
+        llvm_equalsp(module.get()),
+        make_cons_func(module.get()),
+        make_append_func(module.get()),
+        builtin_pair_p(module.get()),
+        builtin_not(module.get()),
+        builtin_car(module.get()),
+        builtin_cdr(module.get()),
+        unwind_raise(module.get()),
+        unwind_resume(module.get()),
+        my_personality_func(module.get()),
+        delete_exception_func(module.get()),
+        create_exception_func(module.get()),
+        display_func(module.get())
+    };
 
     for (auto f : builtins) {
         if (llvm::verifyFunction(*f, &llvm::outs())) {
@@ -2053,31 +2060,18 @@ Result<Atom> NativeEngine::execute(Atom a) {
                                       {llvm::Type::getInt64Ty(context)}, false);
     auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage,
                                     name, module.get());
+
     auto bb = llvm::BasicBlock::Create(context, "entry", f);
 
-    llvm::IRBuilder<> builder(context);
+    llvm::IRBuilder builder(context);
     builder.SetInsertPoint(bb);
 
-    ExceptionConfig expConfig;
-
-    using TypeArray = llvm::ArrayRef<llvm::Type *>;
-
-    expConfig.type_info_type =
-        llvm::StructType::get(context, TypeArray(builder.getInt32Ty()));
-
-    llvm::Type *caughtTypes[] = {builder.getInt8PtrTy(), builder.getInt32Ty()};
-
-    expConfig.caught_result_type =
-        llvm::StructType::get(context, TypeArray(caughtTypes));
-
-    expConfig.exception_type = llvm::StructType::get(context, TypeArray(expConfig.type_info_type));
-
-    expConfig.unwind_exception_type = llvm::StructType::get(context, TypeArray(builder.getInt64Ty()));
-
-    auto st = llvm::ConstantStruct::get(
-        expConfig.type_info_type, {llvm::ConstantInt::get(builder.getInt32Ty(), 0)});
+    auto expConfig = exception_config(context);
 
     if (!my_exception) {
+        auto st = llvm::ConstantStruct::get(
+            expConfig.type_info_type,
+            {llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0)});
         my_exception = new llvm::GlobalVariable(
             *module.get(), expConfig.type_info_type, true,
             llvm::GlobalValue::ExternalLinkage, st, "my_exception");
@@ -2091,30 +2085,11 @@ Result<Atom> NativeEngine::execute(Atom a) {
     }
     builder.CreateRet(get_value(v));
 
-    fpm->run(*f);
-
-    for (auto &F : *module.get()) {
-        fpm->run(F);
-    }
-
-    mpm.run(*module.get());
 
     if (CompilerVerbosity) {
         for (auto &F : *module) {
             F.print(llvm::outs());
         }
-    }
-
-    if (CompilerVerbosity) {
-        // llvm::legacy::PassManager pm;
-        // auto out_file = llvm::raw_fd_ostream(0, false);
-        // if (jit->getTargetMachine().addPassesToEmitFile(
-        //         pm, out_file, &out_file,
-        //         llvm::TargetMachine::CGFT_AssemblyFile)) {
-        //     llvm::outs().flush();
-        // } else {
-        //     pm.run(*module.get());
-        // }
     }
 
     if (llvm::verifyFunction(*f, &llvm::outs())) {
@@ -2125,7 +2100,7 @@ Result<Atom> NativeEngine::execute(Atom a) {
         return "module didn't pass verification";
     }
 
-    if(auto err =jit->addModule(std::move(module)) ) {
+    if(auto err = jit->addModule(std::move(module)) ) {
         llvm::errs() << "ERR: "<< err;
         return "add module failed!";
     }

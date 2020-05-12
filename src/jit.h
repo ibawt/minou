@@ -14,7 +14,9 @@
 #include "llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
 #include "llvm/ExecutionEngine/Orc/LazyReexports.h"
 #include "llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h"
-
+#include "llvm/Transforms/IPO.h"
+#include "llvm/Transforms/IPO/PassManagerBuilder.h"
+#include "llvm/Transforms/Utils.h"
 
 #include "llvm/ExecutionEngine/SectionMemoryManager.h"
 #include "llvm/IR/DataLayout.h"
@@ -97,16 +99,28 @@ public:
             auto FPM =
                 std::make_unique<legacy::FunctionPassManager>(&m);
 
-            // Add some optimizations.
-            FPM->add(createInstructionCombiningPass());
-            FPM->add(createCFGSimplificationPass());
+            llvm::legacy::PassManager mpm;
+            llvm::PassManagerBuilder pmBuilder;
+
+            pmBuilder.Inliner = llvm::createFunctionInliningPass();
+            pmBuilder.OptLevel = 3;
+            pmBuilder.populateModulePassManager(mpm);
+
+            FPM->add(llvm::createTailCallEliminationPass());
+            FPM->add(llvm::createPromoteMemoryToRegisterPass());
+            FPM->add(llvm::createInstructionCombiningPass());
+            FPM->add(llvm::createReassociatePass());
+            FPM->add(llvm::createGVNPass());
+            FPM->add(llvm::createCFGSimplificationPass());
+
             FPM->doInitialization();
 
             // Run the optimizations over functions that are packed up by COD
             // and added to OptimizeIRLayer
             for (auto &F : m)
                 FPM->run(F);
-            llvm::errs() << m;
+
+            mpm.run(m);
         });
         return std::move(TSM);
     }

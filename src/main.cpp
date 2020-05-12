@@ -32,7 +32,6 @@ int main(int argc, char **argv) {
     }
 
     if (optind < argc) {
-        fmt::print("optional arg: {}\n", argv[optind]);
         try {
             auto x = engine.eval_file(argv[optind]);
             if (is_error(x)) {
