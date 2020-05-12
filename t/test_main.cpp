@@ -96,11 +96,15 @@ TEST(Parsing, AllTheThings) {
         {"\"stuff\"", make_string(m.alloc_string("stuff"))},
         {"#t", make_boolean(true)},
         {"#f", make_boolean(false)},
+        {"\"\n\"", make_string(m.alloc_string("\n"))},
+        {"\"\t\"", make_string(m.alloc_string("\t"))},
+        {"\"\r\"", make_string(m.alloc_string("\r"))},
+        {"\"\e\"", make_string(m.alloc_string("\e"))},
     };
 
     for (const auto &test : tests) {
         auto a = parse(m, test.input);
-        ASSERT_TRUE(std::holds_alternative<Atom>(a));
+        ASSERT_TRUE(std::holds_alternative<Atom>(a)) << fmt::format("error: {}, expected: {}", get_error(a), test.input);
         EXPECT_EQ(get_value(a), test.output);
     }
 

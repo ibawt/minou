@@ -7,10 +7,11 @@ addons:
     - libreadline-dev
     - cmake
     - git
-    - llvm-8-dev
+before_script:
+- sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
 script:
 - mkdir -p build
 - cd build
-- LLVM_DIR=/usr/lib/llvm-8 cmake ../
+- LLVM_DIR=/usr/lib/llvm-10 cmake ../
 - make
 - ./minou-tests

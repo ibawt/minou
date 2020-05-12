@@ -131,10 +131,29 @@ struct Parser {
                 int c = buff.peek();
                 switch (c) {
                 case EOF:
-                    return error("eof");
+                    return "eof";
+                case 'n':
+                    out.push_back('\n');
+                    break;
+                case 't':
+                    out.push_back('\t');
+                    break;
+                case 'r':
+                    out.push_back('\r');
+                    break;
+                case '0':
+                    out.push_back(0);
+                    break;
+                case 'a':
+                    out.push_back('\a');
+                    break;
+                case 'e':
+                    out.push_back('\e');
+                    break;
                 default:
                     out.push_back(c);
                 }
+                buff.next();
             } break;
             case '"':
                 buff.next();

@@ -3,8 +3,8 @@
 
 #include "types.hpp"
 #include "env.hpp"
-#include "kaleidoscope.h"
 #include "llvm/Support/TargetSelect.h"
+#include "jit.h"
 
 namespace minou {
 
@@ -12,17 +12,19 @@ class Engine;
 
 class NativeEngine
 {
-    llvm::LLVMContext                           context;
-    std::unique_ptr<llvm::orc::KaleidoscopeJIT> jit;
+    std::unique_ptr<llvm::orc::KaleidoscopeJIT2> jit;
     Engine *engine;
     Env    *env;
+    llvm::LLVMContext& getContext() { return jit->getContext(); }
+
+    llvm::GlobalVariable *my_exception = nullptr;
 
 public:
     NativeEngine(Engine *engine, Env* env) : engine(engine), env(env) {
         llvm::InitializeNativeTarget();
         llvm::InitializeNativeTargetAsmPrinter();
         llvm::InitializeNativeTargetAsmParser();
-        jit = std::make_unique<llvm::orc::KaleidoscopeJIT>();
+        jit = cantFail(llvm::orc::KaleidoscopeJIT2::Create()) ;
     }
     Result<Atom> execute(Atom);
 

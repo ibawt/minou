@@ -1,6 +1,5 @@
 #include "compiler.hpp"
 #include "engine.hpp"
-#include "kaleidoscope.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/BinaryFormat/Dwarf.h"
@@ -31,6 +30,7 @@
 #include <string>
 #include <unwind.h>
 #include <vector>
+#include "jit.h"
 
 int CompilerVerbosity = 0;
 
@@ -474,6 +474,13 @@ static std::string lambda_unique_name() {
     auto n = lambda_counter.fetch_add(1);
 
     return fmt::format("lambda_{}", n);
+}
+static std::string expression_unique_name() {
+    static std::atomic<int> lambda_counter = 0;
+
+    auto n = lambda_counter.fetch_add(1);
+
+    return fmt::format("expression_{}", n);
 }
 
 class CompilerContext {
@@ -1992,12 +1999,10 @@ static llvm::Function *delete_exception_func(llvm::Module *m) {
 }
 
 Result<Atom> NativeEngine::execute(Atom a) {
-    auto module = std::make_unique<llvm::Module>("anon", context);
-    module->setDataLayout(jit->getTargetMachine().createDataLayout());
-    module->setTargetTriple(jit->getTargetMachine().getTargetTriple().str());
-    jit->getTargetMachine().Options.MCOptions.AsmVerbose = true;
-    jit->getTargetMachine().Options.ExceptionModel =
-        llvm::ExceptionHandling::DwarfCFI;
+    auto name = expression_unique_name();
+    auto module = std::make_unique<llvm::Module>("anon", jit->getContext());
+    module->setDataLayout(jit->getDataLayout());
+    auto& context = getContext();
 
     llvm::legacy::PassManager mpm;
     llvm::PassManagerBuilder pmBuilder;
@@ -2047,7 +2052,7 @@ Result<Atom> NativeEngine::execute(Atom a) {
     auto ft = llvm::FunctionType::get(llvm::Type::getInt64Ty(context),
                                       {llvm::Type::getInt64Ty(context)}, false);
     auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage,
-                                    "expression", module.get());
+                                    name, module.get());
     auto bb = llvm::BasicBlock::Create(context, "entry", f);
 
     llvm::IRBuilder<> builder(context);
@@ -2072,11 +2077,14 @@ Result<Atom> NativeEngine::execute(Atom a) {
     auto st = llvm::ConstantStruct::get(
         expConfig.type_info_type, {llvm::ConstantInt::get(builder.getInt32Ty(), 0)});
 
-    auto gv = new llvm::GlobalVariable(*module.get(), expConfig.type_info_type, true,
-                                       llvm::GlobalValue::ExternalLinkage, st,
-                                       "my_exception");
+    if (!my_exception) {
+        my_exception = new llvm::GlobalVariable(
+            *module.get(), expConfig.type_info_type, true,
+            llvm::GlobalValue::ExternalLinkage, st, "my_exception");
+    }
 
-    CompilerContext compiler(context, builder, module.get(), engine, env, this, expConfig);
+    CompilerContext compiler(context, builder, module.get(), engine, env, this,
+                             expConfig);
     auto v = compiler.compile(a, nullptr, nullptr);
     if (is_error(v)) {
         return get_error(v);
@@ -2098,15 +2106,15 @@ Result<Atom> NativeEngine::execute(Atom a) {
     }
 
     if (CompilerVerbosity) {
-        llvm::legacy::PassManager pm;
-        auto out_file = llvm::raw_fd_ostream(0, false);
-        if (jit->getTargetMachine().addPassesToEmitFile(
-                pm, out_file, &out_file,
-                llvm::TargetMachine::CGFT_AssemblyFile)) {
-            llvm::outs().flush();
-        } else {
-            pm.run(*module.get());
-        }
+        // llvm::legacy::PassManager pm;
+        // auto out_file = llvm::raw_fd_ostream(0, false);
+        // if (jit->getTargetMachine().addPassesToEmitFile(
+        //         pm, out_file, &out_file,
+        //         llvm::TargetMachine::CGFT_AssemblyFile)) {
+        //     llvm::outs().flush();
+        // } else {
+        //     pm.run(*module.get());
+        // }
     }
 
     if (llvm::verifyFunction(*f, &llvm::outs())) {
@@ -2117,24 +2125,26 @@ Result<Atom> NativeEngine::execute(Atom a) {
         return "module didn't pass verification";
     }
 
-    auto H = jit->addModule(std::move(module));
+    if(auto err =jit->addModule(std::move(module)) ) {
+        llvm::errs() << "ERR: "<< err;
+        return "add module failed!";
+    }
 
-    auto s = jit->findSymbol("expression");
-    auto addr = jit->findSymbol("expression").getAddress();
+    auto addr = jit->lookup(name);
 
     if (auto err = addr.takeError()) {
         llvm::logAllUnhandledErrors(std::move(err), llvm::outs(), "error");
         return "error finding expression symbol";
     }
     for (auto &[key, value] : compiler.get_lambdas()) {
-        auto x = jit->findSymbol(*value->native_name);
-        if (auto err = x.getAddress().takeError()) {
+        auto x = jit->lookup(*value->native_name);
+        if (auto err = x.takeError()) {
             return "error in finding symbol";
         }
-        value->function_pointer = reinterpret_cast<void *>(*x.getAddress());
+        value->function_pointer = reinterpret_cast<void *>(x->getAddress());
     }
 
-    Atom (*FP)(Env *) = (Atom(*)(Env *))(intptr_t)*addr;
+    Atom (*FP)(Env *) = (Atom(*)(Env *))(intptr_t)addr->getAddress();
 
     auto x = FP(env);
 
