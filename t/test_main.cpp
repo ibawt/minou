@@ -295,6 +295,10 @@ TEST_F(EvalTest, Cdr) {
         });
 }
 
+TEST_F(EvalTest, ExceptionOnNotLambda) {
+    EXPECT_ANY_THROW(engine->eval("(1)"));
+}
+
 
 // TEST_F(EvalTest, CallCC) {
 //     run({

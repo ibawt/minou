@@ -1415,6 +1415,8 @@ class CompilerContext {
         if (is_error(l))
             return l;
 
+        type_check(get_value(l), AtomType::Lambda);
+
         auto f = module->getFunction("lambda_get_function_pointer");
         auto fp = builder.CreateCall(f, get_value(l));
         fp->setCallingConv(llvm::CallingConv::Fast);
@@ -1461,6 +1463,13 @@ class CompilerContext {
 
             return v;
         }
+    }
+    llvm::Value* type_check(llvm::Value *val, AtomType type) {
+        auto typeCheck = module->getFunction("raise_unless_type");
+        return builder.CreateCall(
+            typeCheck, {val,
+                        llvm::ConstantInt::get(llvm::Type::getInt8Ty(context),
+                                               (uint64_t)type)});
     }
 
     llvm::Value *get_env() {
@@ -1617,6 +1626,7 @@ static llvm::Function *builtin_cdr(llvm::Module *m) {
 
     return f;
 }
+
 static llvm::Function *builtin_not(llvm::Module *m) {
     auto ft =
         llvm::FunctionType::get(llvm::Type::getInt64Ty(m->getContext()),
@@ -1926,6 +1936,54 @@ static llvm::Function *atom_to_integer(llvm::Module *module) {
     return f;
 }
 
+static llvm::Function* raise_unless_type(llvm::Module* module) {
+    auto &context = module->getContext();
+    auto ft = llvm::FunctionType::get(
+        llvm::Type::getVoidTy(context),
+        {llvm::Type::getInt64Ty(context), llvm::Type::getInt8Ty(context)},
+        false);
+
+    auto f = llvm::Function::Create(ft, llvm::Function::PrivateLinkage,
+                                    "raise_unless_type", module);
+
+    auto bb = llvm::BasicBlock::Create(context, "entry", f);
+
+    f->setCallingConv(llvm::CallingConv::Fast);
+
+    llvm::IRBuilder<> builder(context);
+    builder.SetInsertPoint(bb);
+
+    auto typeFun = module->getFunction("atom_to_type");
+
+    auto args = f->args().begin();
+
+    auto val = args++;
+    auto type = args++;
+
+    auto valType = builder.CreateCall(typeFun, val);
+
+    auto pred = builder.CreateICmpEQ(valType, type);
+
+    auto cx = module->getFunction("create_exception");
+    auto raise = module->getFunction("_Unwind_RaiseException");
+
+    auto then = llvm::BasicBlock::Create(context, "then", f);
+    auto elseB = llvm::BasicBlock::Create(context, "else", f);
+
+    builder.CreateCondBr(pred, then, elseB);
+
+    builder.SetInsertPoint(then);
+    builder.CreateRetVoid();
+
+    builder.SetInsertPoint(elseB);
+    auto ex = builder.CreateCall(cx);
+    auto r = builder.CreateCall(raise, ex);
+    r->setDoesNotReturn();
+    builder.CreateUnreachable();
+
+    return f;
+}
+
 static llvm::Function *unwind_raise(llvm::Module *m) {
     auto &context = m->getContext();
 
@@ -2047,12 +2105,13 @@ Result<Atom> NativeEngine::execute(Atom a) {
         my_personality_func(module.get()),
         delete_exception_func(module.get()),
         create_exception_func(module.get()),
-        display_func(module.get())
+        display_func(module.get()),
+        raise_unless_type(module.get()),
     };
 
     for (auto f : builtins) {
         if (llvm::verifyFunction(*f, &llvm::outs())) {
-            assert(false);
+            return "function failed verification";
         }
     }
 
@@ -2092,8 +2151,11 @@ Result<Atom> NativeEngine::execute(Atom a) {
         }
     }
 
-    if (llvm::verifyFunction(*f, &llvm::outs())) {
-        return "function didn't pass verify";
+    std::string error_buf;
+    llvm::raw_string_ostream err_stream(error_buf);
+
+    if (llvm::verifyFunction(*f, &err_stream)) {
+        return err_stream.str();
     }
 
     if (llvm::verifyModule(*module.get(), &llvm::outs())) {
@@ -2119,7 +2181,7 @@ Result<Atom> NativeEngine::execute(Atom a) {
         value->function_pointer = reinterpret_cast<void *>(x->getAddress());
     }
 
-    Atom (*FP)(Env *) = (Atom(*)(Env *))(intptr_t)addr->getAddress();
+    Atom (*FP)(Env *) = (Atom(*)(Env *))(uintptr_t)addr->getAddress();
 
     auto x = FP(env);
 

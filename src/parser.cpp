@@ -26,44 +26,11 @@ static std::optional<int64_t> parse_integer(const std::string &s) {
     return i;
 }
 
-class Buffer {
-  public:
-    Buffer(const std::string_view &s) : buffer(s) {}
-
-    void read_to_new_line() {
-        for (;;) {
-            int c = next();
-            if (c == '\n' || c == EOF) {
-                return;
-            }
-        }
-    }
-
-    int peek() const {
-        if (position >= buffer.size()) {
-            return EOF;
-        }
-        return buffer[position];
-    }
-
-    int next() {
-        if (position >= buffer.size()) {
-            return EOF;
-        }
-        return buffer[position++];
-    }
-
-  private:
-    const std::string_view buffer;
-    size_t position = 0;
-};
-
-static Result<Atom> error(const char *s) { return std::string(s); }
 
 static Atom get_parse_atom(const Result<Atom> &p) { return std::get<Atom>(p); }
 
 struct Parser {
-    Buffer buff;
+    Buffer& buff;
     Memory &memory;
 
     Result<Atom> quote_atom(Atom a) {
@@ -301,9 +268,13 @@ struct Parser {
     }
 };
 
-Result<Atom> parse(Memory &mem, const std::string_view &s) {
-    Parser p{s, mem};
-    return p.parse_atom();
+Result<Atom> parse(Memory &mem, Buffer& b) {
+    try {
+        Parser p{b, mem};
+        return p.parse_atom();
+    } catch(std::istream::failure& e) {
+        return fmt::format("error in parse: {}", e.what());
+    }
 }
 
 } // namespace minou
