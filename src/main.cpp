@@ -75,7 +75,7 @@ int main(int argc, char **argv) {
         free(line);
     }
 
-    fmt::print("Bye!\n");
+    fmt::print("\nBye!\n");
 
     return 0;
 }

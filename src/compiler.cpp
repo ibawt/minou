@@ -111,6 +111,12 @@ API void delete_exception(void *e) {
     delete x;
 }
 
+API void display_exception(void *e) {
+    fmt::print("display_exception e: {:x}\n", e);
+    auto x = (BaseException *)((uintptr_t)e -
+                               offsetof(BaseException, unwind_exception));
+}
+
 API void delete_exception_from_unwind(_Unwind_Reason_Code reason,
                                       _Unwind_Exception *e) {
     delete_exception(e);
@@ -2055,6 +2061,16 @@ static llvm::Function *delete_exception_func(llvm::Module *m) {
 
     return f;
 }
+static llvm::Function *display_exception_func(llvm::Module *m) {
+    auto &context = m->getContext();
+
+    auto f = llvm::Function::Create(
+        llvm::FunctionType::get(llvm::Type::getVoidTy(context),
+                                llvm::Type::getInt8PtrTy(context), false),
+        llvm::Function::ExternalLinkage, "display_exception", m);
+
+    return f;
+}
 
 static ExceptionConfig exception_config(llvm::LLVMContext& context) {
     ExceptionConfig expConfig;
@@ -2107,6 +2123,7 @@ Result<Atom> NativeEngine::execute(Atom a) {
         create_exception_func(module.get()),
         display_func(module.get()),
         raise_unless_type(module.get()),
+        display_exception_func(module.get()),
     };
 
     for (auto f : builtins) {
@@ -2114,26 +2131,34 @@ Result<Atom> NativeEngine::execute(Atom a) {
             return "function failed verification";
         }
     }
-
-    auto ft = llvm::FunctionType::get(llvm::Type::getInt64Ty(context),
+    llvm::IRBuilder builder(context);
+        auto ft = llvm::FunctionType::get(llvm::Type::getInt64Ty(context),
                                       {llvm::Type::getInt64Ty(context)}, false);
-    auto f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage,
-                                    name, module.get());
+    auto f = llvm::Function::Create(ft, llvm::Function::InternalLinkage,
+                                    lambda_unique_name(), module.get());
+
+    f->setPersonalityFn(module->getFunction("my_personality"));
 
     auto bb = llvm::BasicBlock::Create(context, "entry", f);
 
-    llvm::IRBuilder builder(context);
     builder.SetInsertPoint(bb);
 
     auto expConfig = exception_config(context);
 
-    if (!my_exception) {
+    if(!my_exception) {
         auto st = llvm::ConstantStruct::get(
             expConfig.type_info_type,
             {llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0)});
         my_exception = new llvm::GlobalVariable(
             *module.get(), expConfig.type_info_type, true,
             llvm::GlobalValue::ExternalLinkage, st, "my_exception");
+    } else {
+        auto st = llvm::ConstantStruct::get(
+            expConfig.type_info_type,
+            {llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0)});
+        auto e = new llvm::GlobalVariable(
+            *module.get(), expConfig.type_info_type, true,
+            llvm::GlobalValue::ExternalLinkage, nullptr, "my_exception");
     }
 
     CompilerContext compiler(context, builder, module.get(), engine, env, this,
@@ -2145,11 +2170,6 @@ Result<Atom> NativeEngine::execute(Atom a) {
     builder.CreateRet(get_value(v));
 
 
-    if (CompilerVerbosity) {
-        for (auto &F : *module) {
-            F.print(llvm::outs());
-        }
-    }
 
     std::string error_buf;
     llvm::raw_string_ostream err_stream(error_buf);
@@ -2157,26 +2177,113 @@ Result<Atom> NativeEngine::execute(Atom a) {
     if (llvm::verifyFunction(*f, &err_stream)) {
         return err_stream.str();
     }
+    auto ff = llvm::Function::Create(
+        llvm::FunctionType::get(llvm::Type::getInt64Ty(context),
+                                {llvm::Type::getInt64Ty(context)}, false),
+        llvm::Function::ExternalLinkage, name, module.get());
 
-    if (llvm::verifyModule(*module.get(), &llvm::outs())) {
-        return "module didn't pass verification";
+    ff->setPersonalityFn(module->getFunction("my_personality"));
+    auto ffbb = llvm::BasicBlock::Create(context, "entry", ff);
+    builder.SetInsertPoint(ffbb);
+
+    auto ff_normal = llvm::BasicBlock::Create(context, "normal", ff);
+    auto ff_except = llvm::BasicBlock::Create(context, "except", ff);
+
+
+    auto fcall= builder.CreateInvoke(f, ff_normal, ff_except, {ff->args().begin()} );
+
+    builder.SetInsertPoint(ff_normal);
+    builder.CreateRet(fcall);
+
+    builder.SetInsertPoint(ff_except);
+    auto cr = builder.CreateLandingPad(expConfig.caught_result_type, 1, "landingpad");
+    cr->setCleanup(true);
+
+        auto clause = module->getGlobalVariable("my_exception");
+        if (!clause) {
+            auto x = jit->lookup("my_exception");
+            if (auto e = x.takeError()) {
+                llvm::outs() << e;
+                return "fuck";
+            }
+            auto st = llvm::ConstantStruct::get(
+                expConfig.type_info_type,
+                {llvm::ConstantInt::get(llvm::Type::getInt32Ty(context),
+                0)});
+            auto c=  builder.getInt64(x->getAddress()) ;
+            fmt::print("gv is {:x}\n", x->getAddress());
+            auto cl = llvm::ConstantExpr::getIntToPtr(c, llvm::PointerType::getUnqual(expConfig.type_info_type));
+            cr->addClause(cl);
+        } else {
+            cr->addClause(clause);
+        }
+        auto unwindException =
+            builder.CreateExtractValue(cr, 0, "unwindException");
+        auto reTypeInfoIndex = builder.CreateExtractValue(cr, 1, "retype");
+        auto eclass = builder.CreateStructGEP(
+            expConfig.unwind_exception_type,
+            builder.CreatePointerCast(
+                unwindException,
+                expConfig.unwind_exception_type->getPointerTo()),
+            0);
+
+        auto typeInfoThrown = builder.CreatePointerCast(
+            builder.CreateConstGEP1_64(
+                unwindException, offsetof(BaseException, unwind_exception)),
+            expConfig.exception_type->getPointerTo());
+
+        typeInfoThrown = builder.CreateStructGEP(expConfig.exception_type,
+                                                 typeInfoThrown, 0);
+
+        auto typeInfoThrownType = builder.CreateStructGEP(typeInfoThrown, 0);
+
+        auto resumeBlock = llvm::BasicBlock::Create(context, "resume", ff);
+        auto catchBlock = llvm::BasicBlock::Create(context, "catch", ff);
+
+        auto catchSwitch =
+            builder.CreateSwitch(reTypeInfoIndex, resumeBlock, 1);
+
+        catchSwitch->addCase(llvm::ConstantInt::get(builder.getInt32Ty(), 1),
+                             catchBlock);
+
+        auto expDisplay = module->getFunction("display_exception");
+        builder.SetInsertPoint(catchBlock);
+        builder.CreateCall(expDisplay, {unwindException});
+        builder.CreateRet(builder.getInt64(make_nil().value));
+
+        builder.SetInsertPoint(resumeBlock);
+        builder.CreateResume(cr);
+
+        if (CompilerVerbosity) {
+            for (auto &F : *module) {
+                F.print(llvm::outs());
+            }
+    }
+
+    if(llvm::verifyFunction(*ff, &err_stream)) {
+        return err_stream.str();
+    }
+
+    if (llvm::verifyModule(*module.get(), &err_stream)) {
+        return err_stream.str();
     }
 
     if(auto err = jit->addModule(std::move(module)) ) {
-        llvm::errs() << "ERR: "<< err;
-        return "add module failed!";
+        err_stream <<  err;
+        return err_stream.str();
     }
 
     auto addr = jit->lookup(name);
 
     if (auto err = addr.takeError()) {
-        llvm::logAllUnhandledErrors(std::move(err), llvm::outs(), "error");
-        return "error finding expression symbol";
+        err_stream << err;
+        return err_stream.str();
     }
     for (auto &[key, value] : compiler.get_lambdas()) {
         auto x = jit->lookup(*value->native_name);
         if (auto err = x.takeError()) {
-            return "error in finding symbol";
+            err_stream << err;
+            return err_stream.str();
         }
         value->function_pointer = reinterpret_cast<void *>(x->getAddress());
     }
